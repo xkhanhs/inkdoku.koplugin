@@ -161,15 +161,43 @@ function Board:changedRect()
     end
     if bottom == 0 then return nil end
 
-    return Geom:new{
-        x = self.dimen.x + (left - 1) * self.cell,
-        y = self.dimen.y + (top - 1) * self.cell,
-        w = (right - left + 1) * self.cell,
-        h = (bottom - top + 1) * self.cell,
-    }
+    -- Viền vẽ đè lên đường kẻ nên lấn sang ô bên cạnh nửa bề dày, nới vùng refresh theo
+    local pad = math.ceil(math.max(self.border, self.frame_width) / 2)
+    local x0 = math.max(0, (left - 1) * self.cell - pad)
+    local y0 = math.max(0, (top - 1) * self.cell - pad)
+    local x1 = math.min(self.size, right * self.cell + pad)
+    local y1 = math.min(self.size, bottom * self.cell + pad)
+    return Geom:new{ x = self.dimen.x + x0, y = self.dimen.y + y0, w = x1 - x0, h = y1 - y0 }
 end
 
 -- ==================== VẼ ====================
+
+-- Viền quanh khối ô từ (top, left) tới (bottom, right), mỗi cạnh căn giữa đúng
+-- đường kẻ lưới để viền các ô khác nhau luôn thẳng hàng với nhau và với lưới.
+-- `skip_thick`: bỏ cạnh trùng đường kẻ đậm của khối 3x3 hay mép bàn cờ.
+function Board:paintCellBorder(bb, top, left, bottom, right, width, color, skip_thick)
+    local x, y, cell, size = self.dimen.x, self.dimen.y, self.cell, self.size
+    local half = math.floor(width / 2)
+
+    local function band(x0, y0, x1, y1)
+        x0, y0 = math.max(0, x0), math.max(0, y0)
+        x1, y1 = math.min(size, x1), math.min(size, y1)
+        if x1 > x0 and y1 > y0 then bb:paintRect(x + x0, y + y0, x1 - x0, y1 - y0, color) end
+    end
+
+    local x_start, x_end = (left - 1) * cell - half, right * cell - half + width
+    local y_start, y_end = (top - 1) * cell - half, bottom * cell - half + width
+    for _, line in ipairs({ top - 1, bottom }) do
+        if not (skip_thick and line % 3 == 0) then
+            band(x_start, line * cell - half, x_end, line * cell - half + width)
+        end
+    end
+    for _, line in ipairs({ left - 1, right }) do
+        if not (skip_thick and line % 3 == 0) then
+            band(line * cell - half, y_start, line * cell - half + width, y_end)
+        end
+    end
+end
 
 local function drawCentered(bb, face, text, x, y, w, h, color)
     local metrics = RenderText:sizeUtf8Text(0, w, face, text, true, false)
@@ -216,39 +244,35 @@ function Board:paintTo(bb, x, y)
             end
 
             if style.same_number then
-                same_cells[#same_cells + 1] = { cell_x, cell_y, row, col }
+                same_cells[#same_cells + 1] = { row, col }
             end
 
             if style.selected then
-                selected_rect = { cell_x, cell_y, style.error }
+                selected_rect = { row, col, cell_x, cell_y, style.error }
             end
         end
     end
 
     self:paintGrid(bb, x, y)
 
-    -- Viền ô chọn và ô cùng số vẽ sau lưới để không bị đường kẻ đè lên
-    -- Cạnh nào trùng đường kẻ đậm của khối 3x3 hay mép bàn cờ thì bỏ, không thì dày gấp đôi
-    local thin = self.thin_border
+    -- Viền vẽ sau lưới để không bị đường kẻ đè lên. Viền mảnh của ô cùng số bỏ cạnh
+    -- trùng đường kẻ đậm, không thì dày gấp đôi.
     for _, pos in ipairs(same_cells) do
-        local cx, cy, row, col = pos[1], pos[2], pos[3], pos[4]
-        local color = COLOR.selected_border
-        if (row - 1) % 3 ~= 0 then bb:paintRect(cx, cy, cell, thin, color) end
-        if row % 3 ~= 0 then bb:paintRect(cx, cy + cell - thin, cell, thin, color) end
-        if (col - 1) % 3 ~= 0 then bb:paintRect(cx, cy, thin, cell, color) end
-        if col % 3 ~= 0 then bb:paintRect(cx + cell - thin, cy, thin, cell, color) end
+        self:paintCellBorder(bb, pos[1], pos[2], pos[1], pos[2], self.thin_border, COLOR.selected_border, true)
     end
     if selected_rect then
-        local sx, sy, on_black = selected_rect[1], selected_rect[2], selected_rect[3]
-        local color = on_black and COLOR.light_text or COLOR.selected_border
-        local inset = on_black and self.border or 0
-        bb:paintBorder(sx + inset, sy + inset, cell - 2 * inset, cell - 2 * inset, self.border, color)
+        local row, col, cx, cy, on_black = unpack(selected_rect)
+        if on_black then
+            -- Ô sai nền đen: viền trắng nằm gọn bên trong ô
+            local inset = self.border
+            bb:paintBorder(cx + inset, cy + inset, cell - 2 * inset, cell - 2 * inset, self.border, COLOR.light_text)
+        else
+            self:paintCellBorder(bb, row, col, row, col, self.border, COLOR.selected_border)
+        end
     end
 
     for _, frame in ipairs((self.blank or game:isHidden()) and {} or self.frames or {}) do
-        bb:paintBorder(x + (frame[2] - 1) * cell, y + (frame[1] - 1) * cell,
-            (frame[4] - frame[2] + 1) * cell, (frame[3] - frame[1] + 1) * cell,
-            self.frame_width, COLOR.frame)
+        self:paintCellBorder(bb, frame[1], frame[2], frame[3], frame[4], self.frame_width, COLOR.frame)
     end
 
     if game:isHidden() and not self.blank then
