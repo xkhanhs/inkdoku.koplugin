@@ -49,7 +49,9 @@ local Board = InputContainer:extend{
     icons_dir = nil,
     on_tap = nil,      -- function(row, col)
     frames = nil,      -- danh sách { top, left, bottom, right } cần đóng khung
-    blank = false,     -- chỉ vẽ lưới, dùng làm nền cho modal thắng và chọn độ khó
+    blank = false,     -- trắng trơn, không cả lưới: nền cho modal thắng và chọn độ khó
+    option_text = nil, -- nút cài đặt dưới nút play khi tạm dừng
+    on_option = nil,   -- function() khi chạm nút đó
 }
 
 function Board:init()
@@ -65,6 +67,7 @@ function Board:init()
     self.given_face = faceForPixels("tfont", self.cell * NUMBER_RATIO)
     self.entry_face = faceForPixels("cfont", self.cell * NUMBER_RATIO)
     self.note_face = faceForPixels("cfont", self.cell * NOTE_RATIO)
+    self.option_face = faceForPixels("cfont", self.cell * 0.34)
     self.painted = {}
 
     local play_size = math.floor(self.size * PLAY_RATIO)
@@ -95,6 +98,13 @@ function Board:onTapBoard(_, ges)
     local y = ges.pos.y - self.dimen.y
     if x < 0 or y < 0 or x >= self.size or y >= self.size then return false end
 
+    local option = self.option_rect
+    if option and self.game:isHidden() and not self.blank and self.on_option
+            and x >= option.x and x < option.x + option.w and y >= option.y and y < option.y + option.h then
+        self.on_option()
+        return true
+    end
+
     local row = math.min(9, math.floor(y / self.cell) + 1)
     local col = math.min(9, math.floor(x / self.cell) + 1)
     if self.on_tap then self.on_tap(row, col) end
@@ -108,7 +118,8 @@ end
 --     chục ô, refresh "ui" chạy qua đen rồi mới về xám nên cả hàng cột nháy lên.
 --     Ô đang chọn có viền đậm, ô cùng số có viền mảnh: chạm ô khác chỉ đổi pixel viền.
 --   * Ô sai luôn nền đen chữ trắng.
---   * Tạm dừng (hoặc `blank`) thì bàn cờ trống trơn: không số, không viền, không ô sai.
+--   * Tạm dừng thì bàn cờ trống trơn: không số, không viền, không ô sai. `blank` bỏ cả
+--     lưới, để khung modal không chồng lên đường kẻ.
 --   * Đang đóng khung vùng vừa xong thì không viền ô cùng số, cho khỏi chồng nhiều khung.
 function Board:cellStyle(row, col)
     local game = self.game
@@ -213,6 +224,15 @@ function Board:paintTo(bb, x, y)
     bb:paintRect(x, y, self.size, self.size, COLOR.background)
     if not game or not game.entries then return end
 
+    if self.blank then
+        for row = 1, 9 do
+            for col = 1, 9 do
+                self.painted[row * 10 + col] = self:cellStyle(row, col).key
+            end
+        end
+        return
+    end
+
     local selected_rect
     local same_cells = {}
     for row = 1, 9 do
@@ -275,12 +295,29 @@ function Board:paintTo(bb, x, y)
         self:paintCellBorder(bb, frame[1], frame[2], frame[3], frame[4], self.frame_width, COLOR.frame)
     end
 
-    if game:isHidden() and not self.blank then
+    if game:isHidden() then
         local play = self[1]
         local play_size = play:getSize()
-        play:paintTo(bb, x + math.floor((self.size - play_size.w) / 2),
-            y + math.floor((self.size - play_size.h) / 2))
+        local play_y = math.floor((self.size - play_size.h) / 2)
+        play:paintTo(bb, x + math.floor((self.size - play_size.w) / 2), y + play_y)
+        self:paintOption(bb, x, y, play_y + play_size.h + math.floor(cell / 2))
     end
+end
+
+-- Nút viền bo góc dưới nút play, căn giữa ngang. Lưu vùng chạm theo toạ độ bàn cờ.
+function Board:paintOption(bb, x, y, top)
+    self.option_rect = nil
+    if not self.option_text then return end
+
+    local metrics = RenderText:sizeUtf8Text(0, self.size, self.option_face, self.option_text, true, false)
+    local h = math.floor(self.cell * 0.8)
+    local w = math.min(self.size - 2 * self.cell, metrics.x + 2 * math.floor(h * 0.5))
+    local left = math.floor((self.size - w) / 2)
+    -- Vẽ lên nền trắng: lưới đi qua vùng này sẽ bị che cho chữ dễ đọc
+    bb:paintRoundedRect(x + left, y + top, w, h, COLOR.background, math.floor(h * 0.25))
+    bb:paintBorder(x + left, y + top, w, h, self.thin_border, COLOR.selected_border, math.floor(h * 0.25))
+    drawCentered(bb, self.option_face, self.option_text, x + left, y + top, w, h, COLOR.given_text)
+    self.option_rect = { x = left, y = top, w = w, h = h }
 end
 
 -- Kẻ bằng paintRect, đường nằm gọn trong bàn cờ để không lem ra ngoài vùng refresh

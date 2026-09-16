@@ -197,6 +197,32 @@ do -- thua sau 3 lỗi
     check("chơi lại", game.mistakes == 0 and not game.lost and game.entries[row][col] == 0)
 end
 
+do -- giới hạn sai 5 và không giới hạn
+    local game = Game.new(clock)
+    game:start("easy", puzzle, solution)
+    local row, col = firstEmpty(game)
+    game:select(row, col)
+    game:setMaxMistakes(5)
+    for _ = 1, 4 do game:input(wrongDigit(row, col)) end
+    check("giới hạn 5 chưa thua sau 4 lỗi", not game.lost)
+    check("giới hạn 5 thua ở lỗi thứ 5", game:input(wrongDigit(row, col)).kind == "lost")
+
+    game:retry()
+    game:select(row, col)
+    game:setMaxMistakes(0)
+    for _ = 1, 20 do game:input(wrongDigit(row, col)) end
+    check("không giới hạn thì không thua", not game.lost and game.mistakes == 20)
+    game:setMaxMistakes(3)
+    check("hạ giới hạn không thua ngay", not game.lost)
+    check("hạ giới hạn thua ở lỗi kế tiếp", game:input(wrongDigit(row, col)).kind == "lost")
+
+    check("vòng giới hạn", game:nextMistakeLimit() == 5)
+    game:setMaxMistakes(0)
+    check("vòng giới hạn quay lại 3", game:nextMistakeLimit() == 3)
+    game:setMaxMistakes("rác")
+    check("giá trị lạ về mặc định", game.max_mistakes == Game.MAX_MISTAKES)
+end
+
 do -- hoàn thành vùng, gợi ý, thắng
     local game = Game.new(clock)
     game:start("easy", puzzle, solution)

@@ -28,7 +28,6 @@ local logger = require("logger")
 
 local Bank = require("inkdoku_bank")
 local Board = require("inkdoku_board")
-local Game = require("inkdoku_game")
 local I18n = require("inkdoku_i18n")
 local Logic = require("inkdoku_logic")
 
@@ -339,6 +338,7 @@ function SudokuScreen:buildLayout()
         size = board_size,
         icons_dir = self.icons_dir,
         on_tap = function(row, col) self:onCellTap(row, col) end,
+        on_option = function() self:onMistakeLimit() end,
     }
 
     -- Hàng nút chức năng
@@ -408,7 +408,13 @@ end
 -- Đưa chữ và badge về khớp trạng thái ván (không vẽ)
 function SudokuScreen:syncControls()
     local game = self.game
-    self.mistakes_label.text = I18n.t("mistakes", game.mistakes, Game.MAX_MISTAKES)
+    if game.max_mistakes > 0 then
+        self.mistakes_label.text = I18n.t("mistakes", game.mistakes, game.max_mistakes)
+    else
+        self.mistakes_label.text = I18n.t("mistakes_count", game.mistakes)
+    end
+    self.board.option_text = I18n.t("mistake_limit",
+        game.max_mistakes > 0 and tostring(game.max_mistakes) or I18n.t("unlimited"))
     self.difficulty_label.text = game.difficulty and I18n.t(game.difficulty) or ""
 
     -- Đang chạy thì chỉ hiện phút, vì chỉ vẽ lại mỗi phút; dừng lại thì hiện tới giây
@@ -591,9 +597,20 @@ function SudokuScreen:onTogglePause()
     self.plugin:saveGame()
 end
 
+-- Nút trên màn tạm dừng: đổi vòng 3 → 5 → không giới hạn, có hiệu lực ngay
+function SudokuScreen:onMistakeLimit()
+    local limit = self.game:nextMistakeLimit()
+    self.game:setMaxMistakes(limit)
+    self.plugin:saveMistakeLimit(limit)
+    self:syncControls()
+    -- Nút có thể hẹp lại: vẽ lại cả bàn cờ để xoá phần chữ cũ
+    self:repaint(self.board, "ui")
+    self:repaint(self.mistakes_label, "ui")
+end
+
 -- ==================== VÁN MỚI, CHƠI LẠI ====================
 
--- Bàn cờ chỉ còn lưới làm nền cho modal, hoặc hiện lại số khi modal đóng
+-- Bàn cờ trắng trơn làm nền cho modal, hoặc hiện lại số khi modal đóng
 function SudokuScreen:setBlank(blank)
     if self.board.blank == blank then return end
     self.board.blank = blank
@@ -670,7 +687,7 @@ function SudokuScreen:showResultDialog()
         local seconds = game:seconds()
         title = I18n.t("won", math.floor(seconds / 60), seconds % 60)
     elseif game.lost then
-        title = I18n.t("lost", Game.MAX_MISTAKES)
+        title = I18n.t("lost", game.mistakes)
     else
         return
     end
@@ -701,7 +718,7 @@ function SudokuScreen:showResultDialog()
             },
         },
     }
-    -- Thắng thì bàn cờ chỉ còn lưới cho modal dễ đọc; thua vẫn để thấy các ô sai
+    -- Thắng thì bàn cờ trắng trơn cho modal dễ đọc; thua vẫn để thấy các ô sai
     if game.won then self:setBlank(true) end
     UIManager:show(dialog)
 end

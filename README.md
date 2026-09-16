@@ -11,7 +11,8 @@ and works on any KOReader device with a touch screen.
 - 6 difficulty levels. Easy, Medium and Hard are generated on the device, and each
   puzzle is checked to have exactly one solution. Expert, Master and Extreme come
   from 900 bundled puzzles rated with Sukaku Explainer.
-- Pencil notes, undo, erase, 3 hints. Three mistakes and the game is over.
+- Pencil notes, undo, erase, 3 hints. Three mistakes and the game is over; the
+  limit can be changed to 5 or unlimited from the pause screen.
 - A correct entry locks the cell and removes that digit from the notes in its row,
   column and box.
 - A digit placed in all 9 cells is dimmed on the number pad.
@@ -76,7 +77,7 @@ Plugin Sudoku cho KOReader, làm riêng cho màn e-ink cảm ứng. Viết cho K
 
 **Tính năng:** 6 mức khó (3 mức tự sinh trên máy, đề nào cũng đúng một nghiệm; 3
 mức khó nhất lấy từ 900 đề đóng gói), ghi chú, undo, xoá ô, 3 lượt gợi ý, sai 3 lần
-là thua. Điền đúng thì ô bị khoá và ghi chú số đó ở cùng hàng, cột, khối tự xoá. Số
+là thua (đổi được thành 5 lần hoặc không giới hạn ở màn tạm dừng). Điền đúng thì ô bị khoá và ghi chú số đó ở cùng hàng, cột, khối tự xoá. Số
 đã đủ 9 ô thì phím số mờ đi. Tự lưu ván, tự tạm dừng khi máy ngủ, giữ màn dọc lúc
 chơi.
 
