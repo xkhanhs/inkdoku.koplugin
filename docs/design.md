@@ -13,12 +13,17 @@ Chép nguyên thư mục vào `koreader/plugins/` trên máy rồi khởi độn
 scp -P 2222 -r inkdoku.koplugin root@"$(kindle-ip)":/mnt/us/koreader/plugins/
 ```
 
-Đừng chép bằng Finder: macOS để lại file `._*` trên thẻ FAT32. Mục **Sudoku** nằm
-trong menu công cụ (**More tools**). Trên ZenOS, plugin chép tay không tự vào
-launcher (ZenOS chỉ tự thêm plugin cài qua ZenPM).
+Đừng chép bằng Finder: macOS để lại file `._*` trên thẻ FAT32. Với menu gốc của
+KOReader, mục **Sudoku** nằm trong **More tools**. ZenOS thay menu đó bằng menu
+Settings riêng và chỉ tự thêm vào launcher những plugin cài qua ZenPM; plugin chép
+tay phải thêm bằng Settings → **Launcher** → **Add plugin** → **Sudoku**.
 
 Tên plugin là tên thư mục (`inkdoku`), nên cài song song được với
 `omer-faruq/sudoku.koplugin`. Ván lưu ở `koreader/settings/inkdoku.lua`, khoá `game`.
+
+Chụp màn hình qua SSH để kiểm tra mà không cần người cầm máy: đọc 1072x1448 byte
+đầu của `/dev/fb0` (8 bit xám) rồi đổi sang PNG. Ảnh đọc từ bộ nhớ đệm nên có thể còn
+vết thanh trạng thái ZenOS không hiện trên màn thật.
 
 ## Cấu trúc
 
@@ -65,36 +70,59 @@ có thể nhiều lời giải và người chơi điền một lời giải h�
 
 ## Đánh đổi cho e-ink
 
-**Màu thành mức xám.** Thứ tự ưu tiên nền ô giữ như `cellBackground()`:
+**Màu thành mức xám, chọn ô bằng viền thay vì tô nền.**
 
 | Vai trò | Web | KOReader |
 |---|---|---|
 | nền | `#fffdf9` | trắng |
-| dấu cộng hàng/cột/khối | `#fff6e6` | `COLOR_GRAY_E` |
-| ô cùng số | `#73bcb3` | `COLOR_GRAY_B` |
-| ô đang chọn | `#18958f` | `COLOR_GRAY_5`, chữ trắng |
+| dấu cộng hàng/cột/khối | nền `#fff6e6` | không có |
+| ô đang chọn | nền `#18958f` | viền đen đậm |
+| ô cùng số | nền `#73bcb3` | viền đen mảnh, bỏ cạnh trùng đường kẻ đậm |
 | ô sai | chữ `#E3A99B` | nền đen, chữ trắng |
-| số đề bài / số mình điền | `#6B5A47` / `#18958f` | đen / `COLOR_GRAY_4` |
-| ghi chú | `#6B5A47` | `COLOR_GRAY_6` |
+| số đề bài / số mình điền | `#6B5A47` / `#18958f` | đen in đậm / `COLOR_GRAY_5` in thường |
+| ghi chú | `#6B5A47` | `COLOR_GRAY_4` |
 | lưới mảnh / đậm | `#d4c4b0` / `#9d8b7a` | `COLOR_GRAY_9` / đen |
 
-Ô sai luôn nền đen, không chỉ khi đang chọn: chữ đỏ nhạt của web không có mức xám
-nào phân biệt được với số thường.
+Thử trên máy mới ra bảng này:
 
-**Sóng loang thành một cú chớp.** Màn e-ink không chạy được hoạt ảnh. Hàng, cột,
-khối vừa xong vẽ nền đen chữ trắng rồi refresh `"fast"` đúng vùng đó, sau 0.15 giây
-vẽ lại bình thường với `"fast"`, rồi một lần `"ui"` trả lại các mức xám (`"fast"`
-chỉ có đen trắng). Thắng thì chớp cả bàn rồi mới hiện modal. Các pha phải cách nhau
-bằng `UIManager:scheduleIn`: `setDirty` gọi liên tiếp trong cùng một tick bị
-UIManager gộp thành một lần refresh và mất nhịp chớp.
+- **Tô nền xám làm nháy.** Refresh `"ui"` chạy qua đen rồi mới về mức xám. Chọn ô
+  đổi nền cả chục ô trong dấu cộng, nên mỗi lần chạm cả hàng lẫn cột nháy đen. Viền
+  chỉ đổi vài pixel nên gần như không thấy. Vì cùng lý do, ô cùng số dùng viền mảnh
+  chứ không tô xám.
+- **Viền căn giữa đường kẻ lưới** (`Board:paintCellBorder`). Vẽ lọt vào trong ô thì
+  viền các ô ở hàng khác nhau lệch nhau và lệch khỏi lưới.
+- **Ô sai luôn nền đen.** Chữ đỏ nhạt của web không có mức xám nào tách được khỏi số
+  thường. Ô đang chọn vì thế không được tô nền đậm, nếu không ô vừa điền đúng (vẫn
+  đang chọn) trông y hệt ô sai.
+- **Số đề bài in đậm.** Chỉ khác mức xám (`GRAY_4` so với đen) thì trên máy gần như
+  không phân biệt được.
+
+**Sóng loang thành khung viền.** Hàng, cột, khối vừa hoàn thành được đóng khung đen
+đậm ngay trong lần refresh hiện số vừa điền, rồi tự gỡ sau 1.5 giây. Trong lúc có
+khung, không viền ô cùng số để khỏi chồng nhiều khung. Không có hoạt ảnh nào: đã thử
+một cú chớp đảo màu bằng refresh `"fast"`, nhưng `"fast"` chỉ có đen trắng nên các ô
+xám trong vùng cũng nháy theo, trông như nháy cả mảng.
+
+**Modal trên nền trống.** Khi hiện modal thắng hay modal chọn độ khó, bàn cờ chỉ còn
+lưới. Tạm dừng cũng vậy, cộng thêm nút play ở giữa.
 
 **Đồng hồ vẽ lại mỗi phút.** Mỗi lần cập nhật là một lần refresh vùng, mỗi giây một
 lần thì hao pin và nháy màn. Thời gian vẫn tính tới giây từ `os.time()`; khi đang
 chạy chỉ hiện số phút, tạm dừng, thua hoặc thắng thì hiện `mm:ss`.
 
-**Vẽ thẳng lên màn hình.** Chạm ô chỉ vẽ lại bàn cờ bằng `UIManager:widgetRepaint`
-rồi refresh đúng vùng của nó, không vẽ lại cả màn. Nếu có hộp thoại đè lên thì để
-UIManager vẽ lại cả chồng cửa sổ.
+**Vẽ thẳng lên màn hình, refresh đúng vùng đổi.** Chạm ô vẽ lại bàn cờ bằng
+`UIManager:widgetRepaint`, rồi chỉ refresh hình chữ nhật bao các ô trông khác lần
+vẽ trước (`Board:changedRect`), nới thêm nửa bề dày viền. Nếu có hộp thoại đè lên
+thì để UIManager vẽ lại cả chồng cửa sổ.
+
+**Màu là cdata FFI.** So sánh một màu Blitbuffer với `nil` bằng `==` gọi `__eq` của
+Blitbuffer và làm KOReader crash thoát hẳn. Đánh dấu kiểu ô bằng cờ boolean, không
+so màu. Bản chạy thử trên máy tính dùng bảng Lua thay cho cdata nên không bắt được
+lỗi này.
+
+**Vuốt xuống mở menu nhanh.** Màn chơi phủ toàn màn hình nên nhận hết cử chỉ. Vuốt
+xuống từ 14% trên cùng được chuyển cho `menu_top_swipe.handleSwipe` của ZenOS, hoặc
+menu file manager nếu không có ZenOS.
 
 **Luôn dọc.** Mở màn chơi thì xoay về `DEVICE_ROTATED_UPRIGHT` nếu đang ở hướng
 khác, nuốt sự kiện `SetRotationMode` trong lúc chơi, đóng thì trả lại hướng cũ và
@@ -104,7 +132,7 @@ refresh toàn màn. Mẫu lấy từ `frontend/ui/screensaver.lua`.
 
 - Không có bàn phím vật lý. Có thêm nút đóng ở top menu.
 - Máy đi ngủ giữa ván thì tự tạm dừng (thay cho `visibilitychange`).
-- Ô gợi ý bị khoá như ô điền đúng và cũng kích hoạt chớp khi hoàn thành vùng.
+- Ô gợi ý bị khoá như ô điền đúng, và cũng đóng khung vùng nếu hoàn thành.
 - Trạng thái thua/thắng được lưu: mở lại ván đã thua vẫn hiện modal thua, không
   chơi tiếp được như bản web.
 - Modal chọn độ khó xếp hai cột theo độ khó tăng dần.
