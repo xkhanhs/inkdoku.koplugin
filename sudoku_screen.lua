@@ -4,7 +4,8 @@
 -- sudoku_game.lua, màn này chỉ gọi luật rồi vẽ lại đúng phần vừa đổi.
 --
 -- Đánh đổi cho e-ink (chi tiết: docs/koreader-plugin.md):
---   * Không có sóng loang; bàn cờ chỉ refresh vùng các ô vừa đổi.
+--   * Sóng loang thành khung viền quanh vùng vừa xong, giữ tới lần chạm kế tiếp.
+--   * Bàn cờ chỉ refresh vùng các ô vừa đổi.
 --   * Đồng hồ vẫn đếm giây trong bộ nhớ nhưng chỉ vẽ lại mỗi phút.
 --   * Luôn dọc: xoay về dọc khi mở, trả lại hướng cũ khi đóng.
 
@@ -253,7 +254,7 @@ end
 -- mỗi khi nó đổi, kể cả khi có cửa sổ toàn màn hình đè lên. Chừa đúng dải đó để
 -- nó không vẽ đè lên header. Không có ZenOS thì không chừa gì.
 local function zenStatusBarHeight()
-    if not rawget(_G, "__ZEN_UI_PLUGIN") then return 0 end
+    if not package.loaded["common/status_bar_registry"] then return 0 end
     local FileManager = package.loaded["apps/filemanager/filemanager"]
     local title_bar = FileManager and FileManager.instance and FileManager.instance.title_bar
     local group = title_bar and title_bar.title_group
@@ -267,6 +268,7 @@ function SudokuScreen:buildLayout()
     local inner = width - 2 * side
 
     local status_h = zenStatusBarHeight()
+    logger.dbg("Sudoku: chừa thanh trạng thái ZenOS", status_h, "px")
     local top_h = math.floor(height * 0.06)
     local stats_h = math.floor(height * 0.045)
     local action_h = math.floor(height * 0.085)
@@ -467,6 +469,19 @@ end
 
 -- ==================== THAO TÁC ====================
 
+-- Khung vùng vừa xong chỉ sống tới lần chạm kế tiếp, chạm ở đâu cũng vậy.
+-- Gỡ khung trước khi chuyển chạm cho nút con, rồi vẽ lại nếu thao tác đó không vẽ.
+function SudokuScreen:handleEvent(event)
+    local ges = event.handler == "onGesture" and event.args[1]
+    local had_frames = ges and ges.ges == "tap" and self.board.frames ~= nil
+    if had_frames then self.board.frames = nil end
+
+    local handled = InputContainer.handleEvent(self, event)
+
+    if had_frames and not self.closed then self:repaintBoard() end
+    return handled
+end
+
 function SudokuScreen:onCellTap(row, col)
     local game = self.game
     if game.lost then
@@ -487,6 +502,9 @@ end
 
 -- Kết quả từ Game:input() / Game:hint()
 function SudokuScreen:applyResult(result)
+    if result.regions and #result.regions > 0 then
+        self.board.frames = result.regions
+    end
     self:repaintBoard()
     self:syncControls()
     self:repaint(self.mistakes_label, "ui")
@@ -572,6 +590,7 @@ function SudokuScreen:startGame(difficulty)
         logger.info("Sudoku: sinh đề", difficulty, string.format("%.0f ms", (os.clock() - started) * 1000))
     end
 
+    self.board.frames = nil
     self.game:start(difficulty, puzzle, solution)
     self.plugin:saveGame()
     self:repaintAll()
@@ -579,6 +598,7 @@ function SudokuScreen:startGame(difficulty)
 end
 
 function SudokuScreen:retryGame()
+    self.board.frames = nil
     self.game:retry()
     self.plugin:saveGame()
     self:repaintAll()

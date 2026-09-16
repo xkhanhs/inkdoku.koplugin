@@ -143,9 +143,28 @@ do -- thua sau 3 lỗi
     check("chơi lại", game.mistakes == 0 and not game.lost and game.entries[row][col] == 0)
 end
 
-do -- gợi ý, thắng
+do -- hoàn thành vùng, gợi ý, thắng
     local game = Game.new(clock)
     game:start("easy", puzzle, solution)
+    local last_col
+    for col = 1, 9 do
+        if not game.locked[1][col] then last_col = col end
+    end
+    for col = 1, 9 do
+        if not game.locked[1][col] and col ~= last_col then
+            game:select(1, col)
+            check("chưa xong hàng thì không có vùng", #game:input(solution[1][col]).regions == 0
+                or col == last_col)
+        end
+    end
+    game:select(1, last_col)
+    local done = game:input(solution[1][last_col])
+    local has_row = false
+    for _, region in ipairs(done.regions) do
+        if region[1] == 1 and region[2] == 1 and region[3] == 1 and region[4] == 9 then has_row = true end
+    end
+    check("xong hàng trả về vùng hàng 1", has_row)
+
     local hint = game:hint()
     check("gợi ý giảm lượt và khoá ô", hint and game.hints == 2
         and game.locked[game.selected.row][game.selected.col])

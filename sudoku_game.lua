@@ -139,6 +139,30 @@ function Game:isWin()
     return true
 end
 
+-- Hàng, cột, khối chứa ô (row, col) vừa được điền kín đúng lời giải.
+-- Mỗi vùng là { top, left, bottom, right }, đánh số từ 1, gồm cả hai đầu.
+function Game:completedRegions(row, col)
+    local box_row = math.floor((row - 1) / 3) * 3 + 1
+    local box_col = math.floor((col - 1) / 3) * 3 + 1
+    local candidates = {
+        { row, 1, row, 9 },
+        { 1, col, 9, col },
+        { box_row, box_col, box_row + 2, box_col + 2 },
+    }
+
+    local regions = {}
+    for _, region in ipairs(candidates) do
+        local done = true
+        for r = region[1], region[3] do
+            for c = region[2], region[4] do
+                if self.entries[r][c] ~= self.solution[r][c] then done = false end
+            end
+        end
+        if done then regions[#regions + 1] = region end
+    end
+    return regions
+end
+
 -- ==================== ĐIỀN SỐ ====================
 
 local function pushHistory(self, row, col)
@@ -160,7 +184,7 @@ end
 --   { kind = "note" }            - bật/tắt ghi chú
 --   { kind = "wrong" }           - điền sai, còn chơi tiếp
 --   { kind = "lost" }            - sai lần thứ MAX_MISTAKES
---   { kind = "correct" }         - điền đúng
+--   { kind = "correct", regions } - điền đúng; regions là hàng/cột/khối vừa xong
 --   { kind = "won" }             - điền ô cuối cùng
 local function afterCorrect(self, row, col)
     self.errors[row][col] = false
@@ -172,7 +196,7 @@ local function afterCorrect(self, row, col)
         return { kind = "won" }
     end
 
-    return { kind = "correct" }
+    return { kind = "correct", regions = self:completedRegions(row, col) }
 end
 
 function Game:input(num)

@@ -2,8 +2,9 @@
 -- Dịch từ js/board-render.js. Một widget vẽ cả bàn cờ lên BlitBuffer: nền ô, số,
 -- ghi chú, lưới. Chạm vào bàn cờ quy đổi toạ độ ra hàng cột như cellFromPoint().
 --
--- Màu web đổi sang mức xám của e-ink. Không có sóng loang: màn e-ink không chạy
--- được hoạt ảnh, và refresh nhanh chỉ có đen trắng nên làm nháy cả vùng xám.
+-- Màu web đổi sang mức xám của e-ink. Thay cho sóng loang, hàng/cột/khối vừa xong
+-- được đóng khung viền đậm (`frames`), vẽ cùng lần refresh hiện số vừa điền: màn
+-- e-ink không chạy được hoạt ảnh, và refresh nhanh chỉ có đen trắng nên làm nháy.
 
 local Blitbuffer = require("ffi/blitbuffer")
 local Device = require("device")
@@ -30,6 +31,7 @@ local COLOR = {
     note_text = Blitbuffer.COLOR_GRAY_4,
     light_text = Blitbuffer.COLOR_WHITE,
     selected_border = Blitbuffer.COLOR_BLACK,
+    frame = Blitbuffer.COLOR_BLACK,
     thin_line = Blitbuffer.COLOR_GRAY_9,
     thick_line = Blitbuffer.COLOR_BLACK,
 }
@@ -45,6 +47,7 @@ local Board = InputContainer:extend{
     size = nil,        -- cạnh bàn cờ, pixel
     icons_dir = nil,
     on_tap = nil,      -- function(row, col)
+    frames = nil,      -- danh sách { top, left, bottom, right } cần đóng khung
 }
 
 function Board:init()
@@ -54,6 +57,7 @@ function Board:init()
     self.thin = math.max(1, math.floor(self.cell / 56))
     self.thick = math.max(2, math.floor(self.cell / 28))
     self.border = math.max(3, math.floor(self.cell / 16))
+    self.frame_width = math.max(4, math.floor(self.cell / 11))
     -- Số đề bài in đậm, số mình điền in thường: xám nhạt dần không đủ tách hai loại
     self.given_face = faceForPixels("tfont", self.cell * NUMBER_RATIO)
     self.entry_face = faceForPixels("cfont", self.cell * NUMBER_RATIO)
@@ -127,9 +131,15 @@ function Board:cellStyle(row, col)
         style.color = game.given[row][col] and COLOR.given_text or COLOR.entry_text
     end
     style.given = game.given[row][col]
+    for _, frame in ipairs(self.frames or {}) do
+        if row >= frame[1] and row <= frame[3] and col >= frame[2] and col <= frame[4] then
+            style.framed = true
+        end
+    end
     style.key = table.concat({ style.background and style.background:getColor8().a or "-",
         style.color:getColor8().a,
-        style.value, style.notes, tostring(style.selected), tostring(hidden) }, "|")
+        style.value, style.notes, tostring(style.selected), tostring(hidden),
+        tostring(style.framed) }, "|")
     return style
 end
 
@@ -214,6 +224,12 @@ function Board:paintTo(bb, x, y)
         local color = on_black and COLOR.light_text or COLOR.selected_border
         local inset = on_black and self.border or 0
         bb:paintBorder(sx + inset, sy + inset, cell - 2 * inset, cell - 2 * inset, self.border, color)
+    end
+
+    for _, frame in ipairs(self.frames or {}) do
+        bb:paintBorder(x + (frame[2] - 1) * cell, y + (frame[1] - 1) * cell,
+            (frame[4] - frame[2] + 1) * cell, (frame[3] - frame[1] + 1) * cell,
+            self.frame_width, COLOR.frame)
     end
 
     if game:isHidden() then
