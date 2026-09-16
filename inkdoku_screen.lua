@@ -1,7 +1,7 @@
 -- ==================== MÀN CHƠI ====================
 -- Bố cục dọc như bản mobile: top menu → stats bar → bàn cờ → 5 nút → number pad.
 -- Dịch phần điều khiển của js/ui-controller.js và script.js; luật chơi nằm ở
--- sudoku_game.lua, màn này chỉ gọi luật rồi vẽ lại đúng phần vừa đổi.
+-- inkdoku_game.lua, màn này chỉ gọi luật rồi vẽ lại đúng phần vừa đổi.
 --
 -- Đánh đổi cho e-ink (chi tiết: docs/koreader-plugin.md):
 --   * Sóng loang thành khung viền quanh vùng vừa xong, tự gỡ sau FRAME_SECONDS.
@@ -26,21 +26,14 @@ local VerticalGroup = require("ui/widget/verticalgroup")
 local VerticalSpan = require("ui/widget/verticalspan")
 local logger = require("logger")
 
-local Bank = require("sudoku_bank")
-local Board = require("sudoku_board")
-local Game = require("sudoku_game")
-local Logic = require("sudoku_logic")
+local Bank = require("inkdoku_bank")
+local Board = require("inkdoku_board")
+local Game = require("inkdoku_game")
+local I18n = require("inkdoku_i18n")
+local Logic = require("inkdoku_logic")
 
 local Screen = Device.screen
 
-local DIFFICULTY_LABELS = {
-    easy = "Dễ",
-    medium = "Trung bình",
-    hard = "Khó",
-    expert = "Chuyên gia",
-    master = "Thành thạo",
-    extreme = "Cao thủ",
-}
 
 -- Thứ tự khó tăng dần theo cột, hai cột như modal bản web
 local DIFFICULTY_ROWS = {
@@ -199,7 +192,7 @@ end
 -- ==================== MÀN CHƠI ====================
 
 local SudokuScreen = InputContainer:extend{
-    name = "sudoku_screen",
+    name = "inkdoku_screen",
     covers_fullscreen = true,
     plugin = nil,
     game = nil,
@@ -321,7 +314,7 @@ function SudokuScreen:buildLayout()
         },
         Label:new{
             width = new_game_w, height = top_h,
-            text = "Game mới", face = button_face,
+            text = I18n.t("new_game"), face = button_face,
             background = Blitbuffer.COLOR_BLACK, color = Blitbuffer.COLOR_WHITE,
             callback = function() self:showDifficultyDialog() end,
         },
@@ -415,13 +408,13 @@ end
 -- Đưa chữ và badge về khớp trạng thái ván (không vẽ)
 function SudokuScreen:syncControls()
     local game = self.game
-    self.mistakes_label.text = string.format("Sai: %d/%d", game.mistakes, Game.MAX_MISTAKES)
-    self.difficulty_label.text = DIFFICULTY_LABELS[game.difficulty] or ""
+    self.mistakes_label.text = I18n.t("mistakes", game.mistakes, Game.MAX_MISTAKES)
+    self.difficulty_label.text = game.difficulty and I18n.t(game.difficulty) or ""
 
     -- Đang chạy thì chỉ hiện phút, vì chỉ vẽ lại mỗi phút; dừng lại thì hiện tới giây
     local seconds = game:seconds()
     if game:canPlay() then
-        self.clock_label.text = string.format("%d phút", math.floor(seconds / 60))
+        self.clock_label.text = I18n.t("minutes", math.floor(seconds / 60))
     else
         self.clock_label.text = formatClock(seconds)
     end
@@ -649,7 +642,7 @@ function SudokuScreen:showDifficultyDialog()
         local row = {}
         for _, difficulty in ipairs(pair) do
             row[#row + 1] = {
-                text = DIFFICULTY_LABELS[difficulty],
+                text = I18n.t(difficulty),
                 callback = function()
                     UIManager:close(dialog)
                     self:startGame(difficulty)
@@ -660,7 +653,7 @@ function SudokuScreen:showDifficultyDialog()
     end
 
     dialog = ButtonDialog:new{
-        title = "Chọn độ khó",
+        title = I18n.t("choose_difficulty"),
         title_align = "center",
         buttons = buttons,
         tap_close_callback = function() self:setBlank(false) end,
@@ -675,10 +668,9 @@ function SudokuScreen:showResultDialog()
     local title
     if game.won then
         local seconds = game:seconds()
-        title = string.format("Xin chúc mừng!\nBạn đã hoàn thành thử thách trong %d:%02d!",
-            math.floor(seconds / 60), seconds % 60)
+        title = I18n.t("won", math.floor(seconds / 60), seconds % 60)
     elseif game.lost then
-        title = string.format("Thua rồi\nBạn đã sai %d lần. Thử lại nhé!", Game.MAX_MISTAKES)
+        title = I18n.t("lost", Game.MAX_MISTAKES)
     else
         return
     end
@@ -693,14 +685,14 @@ function SudokuScreen:showResultDialog()
         buttons = {
             {
                 {
-                    text = "Chơi lại",
+                    text = I18n.t("retry"),
                     callback = function()
                         UIManager:close(dialog)
                         self:retryGame()
                     end,
                 },
                 {
-                    text = "Ván mới",
+                    text = I18n.t("another_game"),
                     callback = function()
                         UIManager:close(dialog)
                         self:showDifficultyDialog()

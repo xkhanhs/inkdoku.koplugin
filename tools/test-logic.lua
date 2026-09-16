@@ -1,10 +1,11 @@
 -- Kiểm tra logic thuần của plugin KOReader, không cần KOReader:
---   luajit tools/koreader/test-logic.lua
+--   luajit tools/test-logic.lua
 
-package.path = "sudoku.koplugin/?.lua;" .. package.path
-local Logic = require("sudoku_logic")
-local Game = require("sudoku_game")
-local Bank = require("sudoku_bank")
+package.path = "./?.lua;" .. package.path
+local Logic = require("inkdoku_logic")
+local Game = require("inkdoku_game")
+local Bank = require("inkdoku_bank")
+local I18n = require("inkdoku_i18n")
 
 math.randomseed(os.time())
 
@@ -62,7 +63,7 @@ end
 -- ==================== ĐỀ ĐÓNG GÓI ====================
 
 for level in pairs(Bank.LEVELS) do
-    local lines = Bank.readLines("sudoku.koplugin/puzzles/" .. level .. ".txt")
+    local lines = Bank.readLines("puzzles/" .. level .. ".txt")
     check(level .. " có file đề", lines and #lines > 0)
     local started = os.clock()
     for _, line in ipairs(lines or {}) do
@@ -70,7 +71,7 @@ for level in pairs(Bank.LEVELS) do
         check(level .. " đọc được đề", puzzle ~= nil)
         check(level .. " nghiệm duy nhất " .. line, Logic.countSolutions(puzzle, 2) == 1)
     end
-    local puzzle, solution = Bank.pick("sudoku.koplugin/puzzles", level)
+    local puzzle, solution = Bank.pick("puzzles", level)
     check(level .. " pick có lời giải", puzzle and validSolution(solution))
     print(string.format("%-7s %d đề đều duy nhất, %.2f ms/đề", level, #(lines or {}),
         (os.clock() - started) / math.max(1, #(lines or {})) * 1000))
@@ -266,6 +267,20 @@ do -- đồng hồ, tạm dừng, lưu và nạp
     check("nạp ô sai và số lỗi", loaded.errors[row2][col2] and loaded.mistakes == 1)
     check("nạp đề gốc", loaded.given[1][1] == (puzzle[1][1] ~= 0))
     check("từ chối dữ liệu hỏng", not Game.new(clock):load({ version = 1, puzzle = "123" }))
+end
+
+do -- ngôn ngữ theo KOReader, hai bảng chuỗi đủ khoá như nhau
+    check("vi_VN là tiếng Việt", I18n.pick("vi_VN") == "vi")
+    check("C là tiếng Anh", I18n.pick("C") == "en" and I18n.pick(nil) == "en")
+    for lang, other in pairs({ en = "vi", vi = "en" }) do
+        for key in pairs(I18n.STRINGS[lang]) do
+            check("thiếu khoá " .. key .. " ở " .. other, I18n.STRINGS[other][key] ~= nil)
+        end
+    end
+    I18n.setLanguage("vi")
+    check("chuỗi có tham số", I18n.t("mistakes", 1, 3) == "Sai: 1/3")
+    I18n.setLanguage("en")
+    check("mọi độ khó có nhãn", I18n.t("extreme") == "Extreme" and I18n.t("easy") == "Easy")
 end
 
 if failures > 0 then

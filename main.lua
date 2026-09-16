@@ -10,15 +10,15 @@ local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local _ = require("gettext")
 
-local Game = require("sudoku_game")
-local Logic = require("sudoku_logic")
-local SudokuScreen = require("sudoku_screen")
+local Game = require("inkdoku_game")
+local Logic = require("inkdoku_logic")
+local SudokuScreen = require("inkdoku_screen")
 
-local SETTINGS_FILE = "sudoku.lua"
+local SETTINGS_FILE = "inkdoku.lua"
 local SETTINGS_KEY = "game"
 
 local Sudoku = WidgetContainer:extend{
-    name = "sudoku",
+    name = "inkdoku",
     is_doc_only = false,
 }
 
