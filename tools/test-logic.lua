@@ -143,28 +143,9 @@ do -- thua sau 3 lỗi
     check("chơi lại", game.mistakes == 0 and not game.lost and game.entries[row][col] == 0)
 end
 
-do -- hoàn thành vùng, gợi ý, thắng
+do -- gợi ý, thắng
     local game = Game.new(clock)
     game:start("easy", puzzle, solution)
-    local target_row = 1
-    local last_col
-    for col = 1, 9 do
-        if not game.locked[target_row][col] then last_col = col end
-    end
-    for col = 1, 9 do
-        if not game.locked[target_row][col] and col ~= last_col then
-            game:select(target_row, col)
-            game:input(solution[target_row][col])
-        end
-    end
-    game:select(target_row, last_col)
-    local result = game:input(solution[target_row][last_col])
-    local in_row = 0
-    for _, cell in ipairs(result.cells) do
-        if cell.row == target_row then in_row = in_row + 1 end
-    end
-    check("hoàn thành hàng trả về 9 ô của hàng", in_row == 9)
-
     local hint = game:hint()
     check("gợi ý giảm lượt và khoá ô", hint and game.hints == 2
         and game.locked[game.selected.row][game.selected.col])

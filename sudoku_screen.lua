@@ -3,8 +3,8 @@
 -- Dịch phần điều khiển của js/ui-controller.js và script.js; luật chơi nằm ở
 -- sudoku_game.lua, màn này chỉ gọi luật rồi vẽ lại đúng phần vừa đổi.
 --
--- Ba đánh đổi cho e-ink (chi tiết: docs/koreader-plugin.md):
---   * Sóng loang → một cú chớp đen trắng trên vùng vừa xong, refresh "fast".
+-- Đánh đổi cho e-ink (chi tiết: docs/koreader-plugin.md):
+--   * Không có sóng loang; bàn cờ chỉ refresh vùng các ô vừa đổi.
 --   * Đồng hồ vẫn đếm giây trong bộ nhớ nhưng chỉ vẽ lại mỗi phút.
 --   * Luôn dọc: xoay về dọc khi mở, trả lại hướng cũ khi đóng.
 
@@ -47,12 +47,6 @@ local DIFFICULTY_ROWS = {
     { "medium", "master" },
     { "hard", "extreme" },
 }
-
--- Nhịp chớp (giây). Hai pha phải cách nhau bằng scheduleIn: gọi setDirty liên
--- tiếp trong cùng một tick thì UIManager gộp lại và không còn thấy chớp.
-local FLASH_START = 0.05
-local FLASH_HOLD = 0.15
-local FLASH_SETTLE = 0.05
 
 local function faceForPixels(name, pixels)
     local scale = Screen:scaleBySize(1000) / 1000
@@ -108,7 +102,7 @@ function Label:paintTo(bb, x, y)
         local pad_x = math.floor(self.height * 0.35)
         local box_w = math.min(self.width, text_w + 2 * pad_x)
         local box_h = math.floor(self.height * 0.72)
-        local box_x = x + self.width - box_w
+        local box_x = x + math.floor((self.width - box_w) / 2)
         local box_y = y + math.floor((self.height - box_h) / 2)
         bb:paintRoundedRect(box_x, box_y, box_w, box_h, self.background, math.floor(box_h * 0.15))
         RenderText:renderUtf8Text(bb, box_x + math.floor((box_w - text_w) / 2),
@@ -209,7 +203,6 @@ function SudokuScreen:init()
 
     self.icons_dir = self.plugin.path .. "/icons"
     self.puzzles_dir = self.plugin.path .. "/puzzles"
-    self.flash_generation = 0
     self.clock_tick = function() self:onClockTick() end
 
     self:buildLayout()
@@ -256,11 +249,24 @@ end
 
 -- ==================== BỐ CỤC ====================
 
+-- ZenOS vẽ thanh trạng thái (giờ, Wi-Fi, pin) của file manager thẳng lên màn hình
+-- mỗi khi nó đổi, kể cả khi có cửa sổ toàn màn hình đè lên. Chừa đúng dải đó để
+-- nó không vẽ đè lên header. Không có ZenOS thì không chừa gì.
+local function zenStatusBarHeight()
+    if not rawget(_G, "__ZEN_UI_PLUGIN") then return 0 end
+    local FileManager = package.loaded["apps/filemanager/filemanager"]
+    local title_bar = FileManager and FileManager.instance and FileManager.instance.title_bar
+    local group = title_bar and title_bar.title_group
+    if not (group and #group >= 2) then return 0 end
+    return group[1]:getSize().h + group[2]:getSize().h
+end
+
 function SudokuScreen:buildLayout()
     local width, height = Screen:getWidth(), Screen:getHeight()
     local side = math.floor(width * 0.03)
     local inner = width - 2 * side
 
+    local status_h = zenStatusBarHeight()
     local top_h = math.floor(height * 0.06)
     local stats_h = math.floor(height * 0.045)
     local action_h = math.floor(height * 0.085)
@@ -269,7 +275,7 @@ function SudokuScreen:buildLayout()
     local line_h = math.max(1, math.floor(height / 700))
 
     local board_size = math.min(inner,
-        height - top_h - line_h - stats_h - action_h - pad_h - 3 * gap)
+        height - status_h - top_h - line_h - stats_h - action_h - pad_h - 3 * gap)
 
     local title_face = faceForPixels("tfont", top_h * 0.5)
     local button_face = faceForPixels("cfont", top_h * 0.34)
@@ -277,9 +283,10 @@ function SudokuScreen:buildLayout()
     local digit_face = faceForPixels("cfont", pad_h * 0.55)
     local badge_face = faceForPixels("tfont", action_h * 0.17)
 
-    -- Top menu
+    -- Top menu: tên bên trái, "Game mới" ở giữa, nút đóng bên phải
     local close_w = top_h
-    local new_game_w = math.floor(inner * 0.32)
+    local new_game_w = math.floor(inner * 0.34)
+    local title_w = math.floor((inner - new_game_w) / 2)
     self.close_button = IconButton:new{
         width = close_w, height = top_h, icon_size = math.floor(top_h * 0.6),
         icon = "close",
@@ -287,7 +294,7 @@ function SudokuScreen:buildLayout()
     }
     local top_bar = HorizontalGroup:new{
         Label:new{
-            width = inner - new_game_w - close_w, height = top_h,
+            width = title_w, height = top_h,
             text = "Sudoku", face = title_face, align = "left",
         },
         Label:new{
@@ -296,6 +303,7 @@ function SudokuScreen:buildLayout()
             background = Blitbuffer.COLOR_BLACK, color = Blitbuffer.COLOR_WHITE,
             callback = function() self:showDifficultyDialog() end,
         },
+        Label:new{ width = inner - title_w - new_game_w - close_w, height = top_h, face = button_face },
         self.close_button,
     }
 
@@ -351,9 +359,10 @@ function SudokuScreen:buildLayout()
         }
     end
 
-    local used = top_h + line_h + stats_h + gap + board_size + gap + action_h + pad_h
+    local used = status_h + top_h + line_h + stats_h + gap + board_size + gap + action_h + pad_h
     self.layout = VerticalGroup:new{
         align = "center",
+        VerticalSpan:new{ width = status_h },
         top_bar,
         LineWidget:new{
             background = Blitbuffer.COLOR_GRAY_D,
@@ -421,6 +430,12 @@ function SudokuScreen:repaint(widget, mode, rect)
     end
 end
 
+-- Bàn cờ chỉ refresh vùng bao các ô trông khác đi
+function SudokuScreen:repaintBoard()
+    local rect = self.board:changedRect()
+    if rect then self:repaint(self.board, "ui", rect) end
+end
+
 function SudokuScreen:repaintControls()
     self:syncControls()
     for _, widget in ipairs({ self.mistakes_label, self.clock_label, self.difficulty_label,
@@ -450,43 +465,6 @@ function SudokuScreen:onClockTick()
     self:scheduleClock()
 end
 
--- ==================== CHỚP ĐẢO MÀU ====================
-
-function SudokuScreen:flash(cells, done)
-    self.flash_generation = self.flash_generation + 1
-    local generation = self.flash_generation
-    local board = self.board
-    local rect = board:cellsRect(cells)
-
-    local function alive()
-        return not self.closed and generation == self.flash_generation
-    end
-
-    UIManager:scheduleIn(FLASH_START, function()
-        if not alive() then return end
-        board:setFlash(cells)
-        self:repaint(board, "fast", rect)
-
-        UIManager:scheduleIn(FLASH_HOLD, function()
-            if not alive() then return end
-            board:setFlash(nil)
-            self:repaint(board, "fast", rect)
-
-            UIManager:scheduleIn(FLASH_SETTLE, function()
-                if not alive() then return end
-                -- "fast" chỉ có đen trắng, một lần "ui" trả lại các mức xám
-                self:repaint(board, "ui", rect)
-                if done then done() end
-            end)
-        end)
-    end)
-end
-
-function SudokuScreen:cancelFlash()
-    self.flash_generation = self.flash_generation + 1
-    self.board:setFlash(nil)
-end
-
 -- ==================== THAO TÁC ====================
 
 function SudokuScreen:onCellTap(row, col)
@@ -504,12 +482,12 @@ function SudokuScreen:onCellTap(row, col)
     end
 
     game:select(row, col)
-    self:repaint(self.board, "ui")
+    self:repaintBoard()
 end
 
 -- Kết quả từ Game:input() / Game:hint()
 function SudokuScreen:applyResult(result)
-    self:repaint(self.board, "ui")
+    self:repaintBoard()
     self:syncControls()
     self:repaint(self.mistakes_label, "ui")
     self:repaint(self.hint_button, "ui")
@@ -522,9 +500,7 @@ function SudokuScreen:applyResult(result)
     elseif result.kind == "won" then
         UIManager:unschedule(self.clock_tick)
         self:repaint(self.clock_label, "ui")
-        self:flash("all", function() self:showResultDialog() end)
-    elseif result.kind == "correct" and #result.cells > 0 then
-        self:flash(result.cells)
+        UIManager:nextTick(function() self:showResultDialog() end)
     end
 end
 
@@ -544,14 +520,14 @@ end
 
 function SudokuScreen:onUndo()
     if self.game:undo() then
-        self:repaint(self.board, "ui")
+        self:repaintBoard()
         self.plugin:saveGame()
     end
 end
 
 function SudokuScreen:onClear()
     if self.game:clear() then
-        self:repaint(self.board, "ui")
+        self:repaintBoard()
         self.plugin:saveGame()
     end
 end
@@ -572,9 +548,8 @@ function SudokuScreen:onTogglePause()
     end
     if not changed then return end
 
-    self:cancelFlash()
     self:syncControls()
-    self:repaint(self.board, "ui")
+    self:repaintBoard()
     self:repaint(self.pause_button, "ui")
     self:repaint(self.clock_label, "ui")
     self:scheduleClock()
@@ -597,7 +572,6 @@ function SudokuScreen:startGame(difficulty)
         logger.info("Sudoku: sinh đề", difficulty, string.format("%.0f ms", (os.clock() - started) * 1000))
     end
 
-    self:cancelFlash()
     self.game:start(difficulty, puzzle, solution)
     self.plugin:saveGame()
     self:repaintAll()
@@ -605,7 +579,6 @@ function SudokuScreen:startGame(difficulty)
 end
 
 function SudokuScreen:retryGame()
-    self:cancelFlash()
     self.game:retry()
     self.plugin:saveGame()
     self:repaintAll()

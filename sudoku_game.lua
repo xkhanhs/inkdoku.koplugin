@@ -26,14 +26,11 @@ function Game.new(clock)
     return setmetatable({ clock = clock or os.time }, Game)
 end
 
-local function sameBlock(row, col, from_row, from_col)
-    return math.floor((row - 1) / 3) == math.floor((from_row - 1) / 3)
-        and math.floor((col - 1) / 3) == math.floor((from_col - 1) / 3)
-end
-
 -- Ô nằm trong "dấu cộng" của ô đang chọn: cùng hàng, cùng cột hoặc cùng khối 3x3
 function Game.inCross(row, col, from_row, from_col)
-    return row == from_row or col == from_col or sameBlock(row, col, from_row, from_col)
+    return row == from_row or col == from_col
+        or (math.floor((row - 1) / 3) == math.floor((from_row - 1) / 3)
+            and math.floor((col - 1) / 3) == math.floor((from_col - 1) / 3))
 end
 
 -- ==================== VÁN MỚI ====================
@@ -142,42 +139,6 @@ function Game:isWin()
     return true
 end
 
-local function cellsMatching(self, includes)
-    local cells = {}
-    for row = 1, 9 do
-        for col = 1, 9 do
-            if includes(row, col) then
-                if self.entries[row][col] ~= self.solution[row][col] then
-                    return nil
-                end
-                cells[#cells + 1] = { row = row, col = col }
-            end
-        end
-    end
-    return cells
-end
-
--- Các ô thuộc hàng/cột/khối vừa hoàn thành nhờ ô (row, col), gộp không trùng.
--- Rỗng nếu không có vùng nào xong. Khi đã thắng thì màn chơi chớp cả bàn thay vì gọi hàm này.
-function Game:completedCells(row, col)
-    local seen, cells = {}, {}
-    local groups = {
-        cellsMatching(self, function(r) return r == row end),
-        cellsMatching(self, function(_, c) return c == col end),
-        cellsMatching(self, function(r, c) return sameBlock(r, c, row, col) end),
-    }
-    for i = 1, 3 do
-        for _, cell in ipairs(groups[i] or {}) do
-            local key = cell.row * 10 + cell.col
-            if not seen[key] then
-                seen[key] = true
-                cells[#cells + 1] = cell
-            end
-        end
-    end
-    return cells
-end
-
 -- ==================== ĐIỀN SỐ ====================
 
 local function pushHistory(self, row, col)
@@ -199,7 +160,7 @@ end
 --   { kind = "note" }            - bật/tắt ghi chú
 --   { kind = "wrong" }           - điền sai, còn chơi tiếp
 --   { kind = "lost" }            - sai lần thứ MAX_MISTAKES
---   { kind = "correct", cells }  - điền đúng; cells là vùng vừa hoàn thành để chớp
+--   { kind = "correct" }         - điền đúng
 --   { kind = "won" }             - điền ô cuối cùng
 local function afterCorrect(self, row, col)
     self.errors[row][col] = false
@@ -211,7 +172,7 @@ local function afterCorrect(self, row, col)
         return { kind = "won" }
     end
 
-    return { kind = "correct", cells = self:completedCells(row, col) }
+    return { kind = "correct" }
 end
 
 function Game:input(num)

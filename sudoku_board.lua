@@ -2,9 +2,8 @@
 -- Dịch từ js/board-render.js. Một widget vẽ cả bàn cờ lên BlitBuffer: nền ô, số,
 -- ghi chú, lưới. Chạm vào bàn cờ quy đổi toạ độ ra hàng cột như cellFromPoint().
 --
--- Màu web đổi sang mức xám của e-ink, giữ nguyên thứ tự ưu tiên nền ô của
--- cellBackground(). Sóng loang thay bằng một cú chớp: các ô trong `flash` vẽ nền
--- đen chữ trắng, màn chơi lo phần hẹn giờ và refresh.
+-- Màu web đổi sang mức xám của e-ink. Không có sóng loang: màn e-ink không chạy
+-- được hoạt ảnh, và refresh nhanh chỉ có đen trắng nên làm nháy cả vùng xám.
 
 local Blitbuffer = require("ffi/blitbuffer")
 local Device = require("device")
@@ -23,15 +22,14 @@ local PLAY_RATIO = 0.22 -- nút play khi tạm dừng, theo cạnh bàn cờ
 
 local COLOR = {
     background = Blitbuffer.COLOR_WHITE,
-    cross = Blitbuffer.COLOR_GRAY_E,
-    same_number = Blitbuffer.COLOR_GRAY_B,
-    selected = Blitbuffer.COLOR_GRAY_5,
+    cross = Blitbuffer.COLOR_GRAY_D,
+    same_number = Blitbuffer.COLOR_GRAY,
     error = Blitbuffer.COLOR_BLACK,
-    flash = Blitbuffer.COLOR_BLACK,
     given_text = Blitbuffer.COLOR_BLACK,
-    entry_text = Blitbuffer.COLOR_GRAY_4,
-    note_text = Blitbuffer.COLOR_GRAY_6,
+    entry_text = Blitbuffer.COLOR_GRAY_5,
+    note_text = Blitbuffer.COLOR_GRAY_4,
     light_text = Blitbuffer.COLOR_WHITE,
+    selected_border = Blitbuffer.COLOR_BLACK,
     thin_line = Blitbuffer.COLOR_GRAY_9,
     thick_line = Blitbuffer.COLOR_BLACK,
 }
@@ -55,9 +53,12 @@ function Board:init()
     self.dimen = Geom:new{ x = 0, y = 0, w = self.size, h = self.size }
     self.thin = math.max(1, math.floor(self.cell / 56))
     self.thick = math.max(2, math.floor(self.cell / 28))
-    self.number_face = faceForPixels("cfont", self.cell * NUMBER_RATIO)
+    self.border = math.max(3, math.floor(self.cell / 16))
+    -- Số đề bài in đậm, số mình điền in thường: xám nhạt dần không đủ tách hai loại
+    self.given_face = faceForPixels("tfont", self.cell * NUMBER_RATIO)
+    self.entry_face = faceForPixels("cfont", self.cell * NUMBER_RATIO)
     self.note_face = faceForPixels("cfont", self.cell * NOTE_RATIO)
-    self.flash = nil
+    self.painted = {}
 
     local play_size = math.floor(self.size * PLAY_RATIO)
     -- Giữ làm con để CloseWidget giải phóng ảnh
@@ -93,37 +94,59 @@ function Board:onTapBoard(_, ges)
     return true
 end
 
--- ==================== CHỚP ĐẢO MÀU ====================
+-- ==================== KIỂU TỪNG Ô ====================
 
--- `cells` là danh sách {row, col}, hoặc "all" cho cả bàn. nil để tắt.
-function Board:setFlash(cells)
-    if cells == nil then
-        self.flash = nil
-        return
-    end
-    local flash = {}
-    for row = 1, 9 do
-        for col = 1, 9 do
-            flash[row * 10 + col] = cells == "all"
+-- Nền ô theo thứ tự ưu tiên của bản web: ô sai, rồi ô cùng số, rồi dấu cộng.
+-- Khác web ở hai chỗ, vì e-ink không có màu:
+--   * ô sai luôn nền đen chữ trắng, không chỉ khi đang chọn;
+--   * ô đang chọn là một viền đậm thay vì nền đậm, để không lẫn với ô sai.
+function Board:cellStyle(row, col)
+    local game = self.game
+    local hidden = game:isHidden()
+    local sel = game.selected
+    local value = game.entries[row][col]
+    local style = {
+        value = hidden and 0 or value,
+        notes = hidden and 0 or game.notes[row][col],
+        selected = game:isSelected(row, col),
+    }
+
+    if game.errors[row][col] and not hidden then
+        style.background = COLOR.error
+        style.color = COLOR.light_text
+    elseif sel then
+        local selected_value = game.entries[sel.row][sel.col]
+        if not hidden and selected_value ~= 0 and value == selected_value then
+            style.background = COLOR.same_number
+        elseif game.inCross(row, col, sel.row, sel.col) then
+            style.background = COLOR.cross
         end
     end
-    if cells ~= "all" then
-        for _, cell in ipairs(cells) do
-            flash[cell.row * 10 + cell.col] = true
-        end
+
+    if not style.color then
+        style.color = game.given[row][col] and COLOR.given_text or COLOR.entry_text
     end
-    self.flash = flash
+    style.given = game.given[row][col]
+    style.key = table.concat({ style.background and style.background:getColor8().a or "-",
+        style.color:getColor8().a,
+        style.value, style.notes, tostring(style.selected), tostring(hidden) }, "|")
+    return style
 end
 
--- Hình chữ nhật bao các ô, toạ độ màn hình
-function Board:cellsRect(cells)
-    if cells == "all" then return self.dimen end
-
+-- Hình chữ nhật (toạ độ màn hình) bao các ô trông khác lần vẽ trước, hoặc nil.
+-- Refresh đúng vùng này thay vì cả bàn cờ để e-ink không phải chạy lại các ô đứng yên.
+function Board:changedRect()
     local top, left, bottom, right = 10, 10, 0, 0
-    for _, cell in ipairs(cells) do
-        top, bottom = math.min(top, cell.row), math.max(bottom, cell.row)
-        left, right = math.min(left, cell.col), math.max(right, cell.col)
+    for row = 1, 9 do
+        for col = 1, 9 do
+            if self.painted[row * 10 + col] ~= self:cellStyle(row, col).key then
+                top, bottom = math.min(top, row), math.max(bottom, row)
+                left, right = math.min(left, col), math.max(right, col)
+            end
+        end
     end
+    if bottom == 0 then return nil end
+
     return Geom:new{
         x = self.dimen.x + (left - 1) * self.cell,
         y = self.dimen.y + (top - 1) * self.cell,
@@ -133,51 +156,6 @@ function Board:cellsRect(cells)
 end
 
 -- ==================== VẼ ====================
-
-local function isFlashed(self, row, col)
-    return self.flash ~= nil and self.flash[row * 10 + col]
-end
-
--- Nền ô theo đúng thứ tự ưu tiên của bản web: ô chọn thắng ô cùng số, ô cùng số
--- thắng dấu cộng. Khác web: ô sai luôn nền đen, vì chữ đỏ nhạt không có mức xám nào thay được.
-function Board:cellBackground(row, col)
-    local game = self.game
-    if isFlashed(self, row, col) then return COLOR.flash end
-    if game.errors[row][col] and not game:isHidden() then return COLOR.error end
-
-    local sel = game.selected
-    if not sel then return nil end
-
-    if sel.row == row and sel.col == col then return COLOR.selected end
-
-    local selected_value = game.entries[sel.row][sel.col]
-    local value = game.entries[row][col]
-    if selected_value ~= 0 and value == selected_value and not game.errors[row][col]
-            and not game:isHidden() then
-        return COLOR.same_number
-    end
-
-    if game.inCross(row, col, sel.row, sel.col) then return COLOR.cross end
-
-    return nil
-end
-
-function Board:textColor(row, col)
-    local game = self.game
-    if isFlashed(self, row, col) or game.errors[row][col] or game:isSelected(row, col) then
-        return COLOR.light_text
-    end
-    if game.given[row][col] then return COLOR.given_text end
-
-    local sel = game.selected
-    if sel then
-        local selected_value = game.entries[sel.row][sel.col]
-        if selected_value ~= 0 and game.entries[row][col] == selected_value then
-            return COLOR.given_text
-        end
-    end
-    return COLOR.entry_text
-end
 
 local function drawCentered(bb, face, text, x, y, w, h, color)
     local metrics = RenderText:sizeUtf8Text(0, w, face, text, true, false)
@@ -193,44 +171,52 @@ function Board:paintTo(bb, x, y)
     bb:paintRect(x, y, self.size, self.size, COLOR.background)
     if not game or not game.entries then return end
 
-    local hidden = game:isHidden()
-
+    local selected_rect
     for row = 1, 9 do
         for col = 1, 9 do
             local cell_x = x + (col - 1) * cell
             local cell_y = y + (row - 1) * cell
+            local style = self:cellStyle(row, col)
+            self.painted[row * 10 + col] = style.key
 
-            local background = self:cellBackground(row, col)
-            if background then
-                bb:paintRect(cell_x, cell_y, cell, cell, background)
+            if style.background then
+                bb:paintRect(cell_x, cell_y, cell, cell, style.background)
             end
 
-            if not hidden then
-                local value = game.entries[row][col]
-                if value ~= 0 then
-                    drawCentered(bb, self.number_face, tostring(value), cell_x, cell_y, cell, cell,
-                        self:textColor(row, col))
-                elseif game.notes[row][col] ~= 0 then
-                    local light = isFlashed(self, row, col) or game:isSelected(row, col)
-                    local color = light and COLOR.light_text or COLOR.note_text
-                    local mini = cell / 3
-                    for num = 1, 9 do
-                        if game:hasNote(row, col, num) then
-                            local slot = num - 1
-                            drawCentered(bb, self.note_face, tostring(num),
-                                cell_x + math.floor((slot % 3) * mini),
-                                cell_y + math.floor(math.floor(slot / 3) * mini),
-                                math.floor(mini), math.floor(mini), color)
-                        end
+            if style.value ~= 0 then
+                drawCentered(bb, style.given and self.given_face or self.entry_face,
+                    tostring(style.value), cell_x, cell_y, cell, cell, style.color)
+            elseif style.notes ~= 0 then
+                local color = style.background == COLOR.error and COLOR.light_text or COLOR.note_text
+                local mini = cell / 3
+                for num = 1, 9 do
+                    if game:hasNote(row, col, num) then
+                        local slot = num - 1
+                        drawCentered(bb, self.note_face, tostring(num),
+                            cell_x + math.floor((slot % 3) * mini),
+                            cell_y + math.floor(math.floor(slot / 3) * mini),
+                            math.floor(mini), math.floor(mini), color)
                     end
                 end
+            end
+
+            if style.selected then
+                selected_rect = { cell_x, cell_y, style.background == COLOR.error }
             end
         end
     end
 
     self:paintGrid(bb, x, y)
 
-    if hidden then
+    -- Viền ô chọn vẽ sau lưới để không bị đường kẻ đè lên
+    if selected_rect then
+        local sx, sy, on_black = selected_rect[1], selected_rect[2], selected_rect[3]
+        local color = on_black and COLOR.light_text or COLOR.selected_border
+        local inset = on_black and self.border or 0
+        bb:paintBorder(sx + inset, sy + inset, cell - 2 * inset, cell - 2 * inset, self.border, color)
+    end
+
+    if game:isHidden() then
         local play = self[1]
         local play_size = play:getSize()
         play:paintTo(bb, x + math.floor((self.size - play_size.w) / 2),
