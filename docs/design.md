@@ -19,7 +19,7 @@ Settings riêng và chỉ tự thêm vào launcher những plugin cài qua ZenPM
 tay phải thêm bằng Settings → **Launcher** → **Add plugin** → **Sudoku**.
 
 Tên plugin là tên thư mục (`inkdoku`), nên cài song song được với
-`omer-faruq/sudoku.koplugin`. Ván lưu ở `koreader/settings/inkdoku.lua`, khoá `game`.
+`omer-faruq/sudoku.koplugin`. Ván lưu ở `koreader/settings/inkdoku.lua`, khoá `game`; giới hạn sai ở khoá `max_mistakes`.
 
 Chụp màn hình qua SSH để kiểm tra mà không cần người cầm máy: đọc 1072x1448 byte
 đầu của `/dev/fb0` (8 bit xám) rồi đổi sang PNG. Ảnh đọc từ bộ nhớ đệm nên có thể còn
@@ -103,8 +103,11 @@ khung, không viền ô cùng số để khỏi chồng nhiều khung. Không c�
 một cú chớp đảo màu bằng refresh `"fast"`, nhưng `"fast"` chỉ có đen trắng nên các ô
 xám trong vùng cũng nháy theo, trông như nháy cả mảng.
 
-**Modal trên nền trống.** Khi hiện modal thắng hay modal chọn độ khó, bàn cờ chỉ còn
-lưới. Tạm dừng cũng vậy, cộng thêm nút play ở giữa.
+**Modal trên nền trống.** Khi hiện modal thắng hay modal chọn độ khó, bàn cờ trắng
+trơn, bỏ cả lưới, để viền modal không chồng lên đường kẻ. Tạm dừng thì còn lưới, nút
+play ở giữa và nút "Giới hạn sai" ngay dưới (3 → 5 → không giới hạn). Cài đặt đặt ở
+đây thay vì thêm icon lên hàng nút hay menu Tools: hàng nút đã chật, còn menu Tools
+sẽ bắt thêm một lần chạm mỗi lần mở game.
 
 **Đồng hồ vẽ lại mỗi phút.** Mỗi lần cập nhật là một lần refresh vùng, mỗi giây một
 lần thì hao pin và nháy màn. Thời gian vẫn tính tới giây từ `os.time()`; khi đang

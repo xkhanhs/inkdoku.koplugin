@@ -17,13 +17,14 @@ local band, bnot, bxor, lshift = bit.band, bit.bnot, bit.bxor, bit.lshift
 local Game = {}
 Game.__index = Game
 
-Game.MAX_MISTAKES = 3
+Game.MAX_MISTAKES = 3 -- mặc định; 0 là không giới hạn
+Game.MISTAKE_LIMITS = { 3, 5, 0 }
 Game.MAX_HINTS = 3
 Game.MAX_HISTORY = 50
 
 -- `clock` trả về số giây (mặc định os.time), tách ra để test tua được thời gian
 function Game.new(clock)
-    return setmetatable({ clock = clock or os.time }, Game)
+    return setmetatable({ clock = clock or os.time, max_mistakes = Game.MAX_MISTAKES }, Game)
 end
 
 -- ==================== VÁN MỚI ====================
@@ -60,6 +61,28 @@ function Game:retry()
     self.elapsed = 0
     self.paused = false
     self.resumed_at = self.clock()
+end
+
+-- Giới hạn sai là cài đặt chung, không lưu theo ván. Đổi giữa ván có hiệu lực ngay
+-- nhưng chỉ xét ở lần sai tiếp theo, nên hạ giới hạn không làm thua tức thì.
+function Game:setMaxMistakes(limit)
+    limit = tonumber(limit)
+    for _, allowed in ipairs(Game.MISTAKE_LIMITS) do
+        if limit == allowed then
+            self.max_mistakes = limit
+            return
+        end
+    end
+    self.max_mistakes = Game.MAX_MISTAKES
+end
+
+-- Giá trị kế tiếp trong vòng 3 → 5 → không giới hạn
+function Game:nextMistakeLimit()
+    local limits = Game.MISTAKE_LIMITS
+    for index, limit in ipairs(limits) do
+        if limit == self.max_mistakes then return limits[index % #limits + 1] end
+    end
+    return Game.MAX_MISTAKES
 end
 
 -- ==================== ĐỒNG HỒ ====================
@@ -190,7 +213,7 @@ end
 --   nil                          - không làm gì
 --   { kind = "note" }            - bật/tắt ghi chú
 --   { kind = "wrong" }           - điền sai, còn chơi tiếp
---   { kind = "lost" }            - sai lần thứ MAX_MISTAKES
+--   { kind = "lost" }            - sai tới giới hạn max_mistakes (0 là không bao giờ thua)
 --   { kind = "correct", regions } - điền đúng; regions là hàng/cột/khối vừa xong
 --   { kind = "won" }             - điền ô cuối cùng
 local function afterCorrect(self, row, col)
@@ -244,7 +267,7 @@ function Game:input(num)
     if num ~= self.solution[row][col] then
         self.errors[row][col] = true
         self.mistakes = self.mistakes + 1
-        if self.mistakes >= Game.MAX_MISTAKES then
+        if self.max_mistakes > 0 and self.mistakes >= self.max_mistakes then
             self.lost = true
             self:stopClock()
             return { kind = "lost" }

@@ -16,6 +16,7 @@ local SudokuScreen = require("inkdoku_screen")
 
 local SETTINGS_FILE = "inkdoku.lua"
 local SETTINGS_KEY = "game"
+local MISTAKE_LIMIT_KEY = "max_mistakes"
 
 local Sudoku = WidgetContainer:extend{
     name = "inkdoku",
@@ -42,11 +43,17 @@ function Sudoku:saveGame()
     self.settings:flush()
 end
 
+function Sudoku:saveMistakeLimit(limit)
+    self.settings:saveSetting(MISTAKE_LIMIT_KEY, limit)
+    self.settings:flush()
+end
+
 function Sudoku:showGame()
     if self.screen then return end
 
     -- Luôn nạp lại từ file: đóng rồi mở lại cũng vào trạng thái tạm dừng như bản web
     local game = Game.new()
+    game:setMaxMistakes(self.settings:readSetting(MISTAKE_LIMIT_KEY))
     if not game:load(self.settings:readSetting(SETTINGS_KEY)) then
         game:start("easy", Logic.generate("easy"))
     end
