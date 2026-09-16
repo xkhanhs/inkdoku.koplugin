@@ -18,7 +18,7 @@ local RenderText = require("ui/rendertext")
 
 local Screen = Device.screen
 
-local NUMBER_RATIO = 0.62
+local NUMBER_RATIO = 0.72
 local NOTE_RATIO = 0.26
 local PLAY_RATIO = 0.22 -- nút play khi tạm dừng, theo cạnh bàn cờ
 

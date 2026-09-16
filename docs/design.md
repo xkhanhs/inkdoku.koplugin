@@ -103,6 +103,13 @@ khung, không viền ô cùng số để khỏi chồng nhiều khung. Không c�
 một cú chớp đảo màu bằng refresh `"fast"`, nhưng `"fast"` chỉ có đen trắng nên các ô
 xám trong vùng cũng nháy theo, trông như nháy cả mảng.
 
+**Font để KOReader quyết định.** Chữ thường xin `cfont`, chữ đậm (số đề bài, tiêu đề,
+badge) xin `tfont`; plugin không đóng gói font riêng. ZenOS ghi đè `Font.fontmap` bằng
+font thư viện người dùng chọn (`modules/global/patches/menu_font.lua`), nên cả màn chơi,
+kể cả số trên bàn cờ, hiện bằng font đó. Bản ZenOS nào còn tìm font đậm gốc qua `ffont`
+thì không đổi được `tfont`, và số đề bài sẽ lệch font với số còn lại. Số trong ô chiếm
+72% cạnh ô.
+
 **Modal trên nền trống.** Khi hiện modal thắng hay modal chọn độ khó, bàn cờ trắng
 trơn, bỏ cả lưới, để viền modal không chồng lên đường kẻ. Tạm dừng thì còn lưới, nút
 play ở giữa và nút "Giới hạn sai" ngay dưới (3 → 5 → không giới hạn). Cài đặt đặt ở
