@@ -207,6 +207,29 @@ function SudokuScreen:init()
     self.clock_tick = function() self:onClockTick() end
 
     self:buildLayout()
+
+    self.ges_events = {
+        SwipeScreen = {
+            GestureRange:new{ ges = "swipe", range = function() return self.dimen end },
+        },
+    }
+end
+
+-- Vuốt xuống từ mép trên mở menu nhanh như ngoài file manager (ZenOS: bật tắt
+-- Wi-Fi, đèn...). Màn chơi phủ toàn màn hình nên phải tự chuyển cử chỉ này đi.
+function SudokuScreen:onSwipeScreen(_, ges)
+    if ges.direction ~= "south" or ges.pos.y > Screen:getHeight() * 0.14 then return true end
+
+    local zen_swipe = package.loaded["modules/global/patches/menu_top_swipe"]
+    if zen_swipe and zen_swipe.handleSwipe then
+        zen_swipe.handleSwipe(ges)
+        return true
+    end
+
+    local FileManager = package.loaded["apps/filemanager/filemanager"]
+    local menu = FileManager and FileManager.instance and FileManager.instance.menu
+    if menu and menu.onShowMenu then menu:onShowMenu() end
+    return true
 end
 
 -- ==================== KHOÁ DỌC ====================
@@ -250,25 +273,11 @@ end
 
 -- ==================== BỐ CỤC ====================
 
--- ZenOS vẽ thanh trạng thái (giờ, Wi-Fi, pin) của file manager thẳng lên màn hình
--- mỗi khi nó đổi, kể cả khi có cửa sổ toàn màn hình đè lên. Chừa đúng dải đó để
--- nó không vẽ đè lên header. Không có ZenOS thì không chừa gì.
-local function zenStatusBarHeight()
-    if not package.loaded["common/status_bar_registry"] then return 0 end
-    local FileManager = package.loaded["apps/filemanager/filemanager"]
-    local title_bar = FileManager and FileManager.instance and FileManager.instance.title_bar
-    local group = title_bar and title_bar.title_group
-    if not (group and #group >= 2) then return 0 end
-    return group[1]:getSize().h + group[2]:getSize().h
-end
-
 function SudokuScreen:buildLayout()
     local width, height = Screen:getWidth(), Screen:getHeight()
     local side = math.floor(width * 0.03)
     local inner = width - 2 * side
 
-    local status_h = zenStatusBarHeight()
-    logger.dbg("Sudoku: chừa thanh trạng thái ZenOS", status_h, "px")
     local top_h = math.floor(height * 0.06)
     local stats_h = math.floor(height * 0.045)
     local action_h = math.floor(height * 0.085)
@@ -277,7 +286,7 @@ function SudokuScreen:buildLayout()
     local line_h = math.max(1, math.floor(height / 700))
 
     local board_size = math.min(inner,
-        height - status_h - top_h - line_h - stats_h - action_h - pad_h - 3 * gap)
+        height - top_h - line_h - stats_h - action_h - pad_h - 3 * gap)
 
     local title_face = faceForPixels("tfont", top_h * 0.5)
     local button_face = faceForPixels("cfont", top_h * 0.34)
@@ -361,10 +370,9 @@ function SudokuScreen:buildLayout()
         }
     end
 
-    local used = status_h + top_h + line_h + stats_h + gap + board_size + gap + action_h + pad_h
+    local used = top_h + line_h + stats_h + gap + board_size + gap + action_h + pad_h
     self.layout = VerticalGroup:new{
         align = "center",
-        VerticalSpan:new{ width = status_h },
         top_bar,
         LineWidget:new{
             background = Blitbuffer.COLOR_GRAY_D,

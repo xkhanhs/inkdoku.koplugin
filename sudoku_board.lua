@@ -23,8 +23,6 @@ local PLAY_RATIO = 0.22 -- nút play khi tạm dừng, theo cạnh bàn cờ
 
 local COLOR = {
     background = Blitbuffer.COLOR_WHITE,
-    cross = Blitbuffer.COLOR_GRAY_D,
-    same_number = Blitbuffer.COLOR_GRAY,
     error = Blitbuffer.COLOR_BLACK,
     given_text = Blitbuffer.COLOR_BLACK,
     entry_text = Blitbuffer.COLOR_GRAY_5,
@@ -100,38 +98,31 @@ end
 
 -- ==================== KIỂU TỪNG Ô ====================
 
--- Nền ô theo thứ tự ưu tiên của bản web: ô sai, rồi ô cùng số, rồi dấu cộng.
--- Khác web ở hai chỗ, vì e-ink không có màu:
---   * ô sai luôn nền đen chữ trắng, không chỉ khi đang chọn;
---   * ô đang chọn là một viền đậm thay vì nền đậm, để không lẫn với ô sai.
+-- Khác bản web vì e-ink:
+--   * Không tô dấu cộng hàng/cột/khối và ô cùng số. Mỗi lần chọn ô đổi nền cả chục
+--     ô, refresh "ui" chạy qua đen rồi mới về xám nên cả hàng cột nháy lên. Chỉ còn
+--     viền đậm quanh ô đang chọn, chạm ô khác chỉ đổi pixel của hai viền.
+--   * Ô sai luôn nền đen chữ trắng.
+--   * Tạm dừng thì bàn cờ trống trơn: không số, không viền, không ô sai.
 function Board:cellStyle(row, col)
     local game = self.game
     local hidden = game:isHidden()
-    local sel = game.selected
-    local value = game.entries[row][col]
     local style = {
-        value = hidden and 0 or value,
+        value = hidden and 0 or game.entries[row][col],
         notes = hidden and 0 or game.notes[row][col],
-        selected = game:isSelected(row, col),
+        selected = not hidden and game:isSelected(row, col),
     }
 
     if game.errors[row][col] and not hidden then
         style.background = COLOR.error
         style.color = COLOR.light_text
-    elseif sel then
-        local selected_value = game.entries[sel.row][sel.col]
-        if not hidden and selected_value ~= 0 and value == selected_value then
-            style.background = COLOR.same_number
-        elseif game.inCross(row, col, sel.row, sel.col) then
-            style.background = COLOR.cross
-        end
     end
 
     if not style.color then
         style.color = game.given[row][col] and COLOR.given_text or COLOR.entry_text
     end
     style.given = game.given[row][col]
-    for _, frame in ipairs(self.frames or {}) do
+    for _, frame in ipairs(hidden and {} or self.frames or {}) do
         if row >= frame[1] and row <= frame[3] and col >= frame[2] and col <= frame[4] then
             style.framed = true
         end
@@ -226,7 +217,7 @@ function Board:paintTo(bb, x, y)
         bb:paintBorder(sx + inset, sy + inset, cell - 2 * inset, cell - 2 * inset, self.border, color)
     end
 
-    for _, frame in ipairs(self.frames or {}) do
+    for _, frame in ipairs(game:isHidden() and {} or self.frames or {}) do
         bb:paintBorder(x + (frame[2] - 1) * cell, y + (frame[1] - 1) * cell,
             (frame[4] - frame[2] + 1) * cell, (frame[3] - frame[1] + 1) * cell,
             self.frame_width, COLOR.frame)

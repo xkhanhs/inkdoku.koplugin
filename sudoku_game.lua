@@ -26,13 +26,6 @@ function Game.new(clock)
     return setmetatable({ clock = clock or os.time }, Game)
 end
 
--- Ô nằm trong "dấu cộng" của ô đang chọn: cùng hàng, cùng cột hoặc cùng khối 3x3
-function Game.inCross(row, col, from_row, from_col)
-    return row == from_row or col == from_col
-        or (math.floor((row - 1) / 3) == math.floor((from_row - 1) / 3)
-            and math.floor((col - 1) / 3) == math.floor((from_col - 1) / 3))
-end
-
 -- ==================== VÁN MỚI ====================
 
 function Game:start(difficulty, puzzle, solution)
