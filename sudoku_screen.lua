@@ -4,7 +4,7 @@
 -- sudoku_game.lua, màn này chỉ gọi luật rồi vẽ lại đúng phần vừa đổi.
 --
 -- Đánh đổi cho e-ink (chi tiết: docs/koreader-plugin.md):
---   * Sóng loang thành khung viền quanh vùng vừa xong, giữ tới lần chạm kế tiếp.
+--   * Sóng loang thành khung viền quanh vùng vừa xong, tự gỡ sau FRAME_SECONDS.
 --   * Bàn cờ chỉ refresh vùng các ô vừa đổi.
 --   * Đồng hồ vẫn đếm giây trong bộ nhớ nhưng chỉ vẽ lại mỗi phút.
 --   * Luôn dọc: xoay về dọc khi mở, trả lại hướng cũ khi đóng.
@@ -48,6 +48,9 @@ local DIFFICULTY_ROWS = {
     { "medium", "master" },
     { "hard", "extreme" },
 }
+
+-- Khung vùng vừa hoàn thành hiện bao lâu rồi tự gỡ
+local FRAME_SECONDS = 1.5
 
 local function faceForPixels(name, pixels)
     local scale = Screen:scaleBySize(1000) / 1000
@@ -205,6 +208,10 @@ function SudokuScreen:init()
     self.icons_dir = self.plugin.path .. "/icons"
     self.puzzles_dir = self.plugin.path .. "/puzzles"
     self.clock_tick = function() self:onClockTick() end
+    self.clear_frames = function()
+        self.board.frames = nil
+        self:repaintBoard()
+    end
 
     self:buildLayout()
 
@@ -251,6 +258,7 @@ end
 function SudokuScreen:onCloseWidget()
     self.closed = true
     UIManager:unschedule(self.clock_tick)
+    UIManager:unschedule(self.clear_frames)
     self.plugin:saveGame()
 
     if self.orig_rotation_mode then
@@ -477,19 +485,6 @@ end
 
 -- ==================== THAO TÁC ====================
 
--- Khung vùng vừa xong chỉ sống tới lần chạm kế tiếp, chạm ở đâu cũng vậy.
--- Gỡ khung trước khi chuyển chạm cho nút con, rồi vẽ lại nếu thao tác đó không vẽ.
-function SudokuScreen:handleEvent(event)
-    local ges = event.handler == "onGesture" and event.args[1]
-    local had_frames = ges and ges.ges == "tap" and self.board.frames ~= nil
-    if had_frames then self.board.frames = nil end
-
-    local handled = InputContainer.handleEvent(self, event)
-
-    if had_frames and not self.closed then self:repaintBoard() end
-    return handled
-end
-
 function SudokuScreen:onCellTap(row, col)
     local game = self.game
     if game.lost then
@@ -512,6 +507,8 @@ end
 function SudokuScreen:applyResult(result)
     if result.regions and #result.regions > 0 then
         self.board.frames = result.regions
+        UIManager:unschedule(self.clear_frames)
+        UIManager:scheduleIn(FRAME_SECONDS, self.clear_frames)
     end
     self:repaintBoard()
     self:syncControls()
@@ -584,6 +581,17 @@ end
 
 -- ==================== VÁN MỚI, CHƠI LẠI ====================
 
+-- Bàn cờ chỉ còn lưới làm nền cho modal, hoặc hiện lại số khi modal đóng
+function SudokuScreen:setBlank(blank)
+    if self.board.blank == blank then return end
+    self.board.blank = blank
+    if blank then
+        UIManager:unschedule(self.clear_frames)
+        self.board.frames = nil
+    end
+    self:repaintBoard()
+end
+
 function SudokuScreen:startGame(difficulty)
     local puzzle, solution
     if Bank.LEVELS[difficulty] then
@@ -599,6 +607,7 @@ function SudokuScreen:startGame(difficulty)
     end
 
     self.board.frames = nil
+    self.board.blank = false
     self.game:start(difficulty, puzzle, solution)
     self.plugin:saveGame()
     self:repaintAll()
@@ -607,6 +616,7 @@ end
 
 function SudokuScreen:retryGame()
     self.board.frames = nil
+    self.board.blank = false
     self.game:retry()
     self.plugin:saveGame()
     self:repaintAll()
@@ -634,7 +644,9 @@ function SudokuScreen:showDifficultyDialog()
         title = "Chọn độ khó",
         title_align = "center",
         buttons = buttons,
+        tap_close_callback = function() self:setBlank(false) end,
     }
+    self:setBlank(true)
     UIManager:show(dialog)
 end
 
@@ -658,6 +670,7 @@ function SudokuScreen:showResultDialog()
         title_align = "center",
         -- Thua thì bắt buộc chọn, như bản web không cho đóng modal bằng chạm ra ngoài
         dismissable = game.won,
+        tap_close_callback = function() self:setBlank(false) end,
         buttons = {
             {
                 {
@@ -677,6 +690,8 @@ function SudokuScreen:showResultDialog()
             },
         },
     }
+    -- Thắng thì bàn cờ chỉ còn lưới cho modal dễ đọc; thua vẫn để thấy các ô sai
+    if game.won then self:setBlank(true) end
     UIManager:show(dialog)
 end
 

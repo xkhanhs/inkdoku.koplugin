@@ -3,8 +3,9 @@
 -- ghi chú, lưới. Chạm vào bàn cờ quy đổi toạ độ ra hàng cột như cellFromPoint().
 --
 -- Màu web đổi sang mức xám của e-ink. Thay cho sóng loang, hàng/cột/khối vừa xong
--- được đóng khung viền đậm (`frames`), vẽ cùng lần refresh hiện số vừa điền: màn
--- e-ink không chạy được hoạt ảnh, và refresh nhanh chỉ có đen trắng nên làm nháy.
+-- được đóng khung viền đậm (`frames`), vẽ cùng lần refresh hiện số vừa điền; màn chơi
+-- lo việc gỡ khung sau vài giây. Màn e-ink không chạy được hoạt ảnh, và refresh nhanh
+-- chỉ có đen trắng nên làm nháy.
 
 local Blitbuffer = require("ffi/blitbuffer")
 local Device = require("device")
@@ -48,6 +49,7 @@ local Board = InputContainer:extend{
     icons_dir = nil,
     on_tap = nil,      -- function(row, col)
     frames = nil,      -- danh sách { top, left, bottom, right } cần đóng khung
+    blank = false,     -- chỉ vẽ lưới, dùng làm nền cho modal thắng và chọn độ khó
 }
 
 function Board:init()
@@ -106,10 +108,11 @@ end
 --     chục ô, refresh "ui" chạy qua đen rồi mới về xám nên cả hàng cột nháy lên.
 --     Ô đang chọn có viền đậm, ô cùng số có viền mảnh: chạm ô khác chỉ đổi pixel viền.
 --   * Ô sai luôn nền đen chữ trắng.
---   * Tạm dừng thì bàn cờ trống trơn: không số, không viền, không ô sai.
+--   * Tạm dừng (hoặc `blank`) thì bàn cờ trống trơn: không số, không viền, không ô sai.
+--   * Đang đóng khung vùng vừa xong thì không viền ô cùng số, cho khỏi chồng nhiều khung.
 function Board:cellStyle(row, col)
     local game = self.game
-    local hidden = game:isHidden()
+    local hidden = self.blank or game:isHidden()
     local style = {
         value = hidden and 0 or game.entries[row][col],
         notes = hidden and 0 or game.notes[row][col],
@@ -117,7 +120,7 @@ function Board:cellStyle(row, col)
     }
 
     local sel = game.selected
-    if not hidden and sel and not style.selected and not game.errors[row][col] then
+    if not hidden and not self.frames and sel and not style.selected and not game.errors[row][col] then
         local selected_value = game.entries[sel.row][sel.col]
         style.same_number = selected_value ~= 0 and style.value == selected_value
     end
@@ -139,7 +142,7 @@ function Board:cellStyle(row, col)
     end
     style.key = table.concat({ style.background and style.background:getColor8().a or "-",
         style.color:getColor8().a,
-        style.value, style.notes, tostring(style.selected), tostring(hidden),
+        style.value, style.notes, tostring(style.selected), tostring(hidden), tostring(self.blank),
         tostring(style.framed), tostring(style.same_number) }, "|")
     return style
 end
@@ -213,7 +216,7 @@ function Board:paintTo(bb, x, y)
             end
 
             if style.same_number then
-                same_cells[#same_cells + 1] = { cell_x, cell_y }
+                same_cells[#same_cells + 1] = { cell_x, cell_y, row, col }
             end
 
             if style.selected then
@@ -225,8 +228,15 @@ function Board:paintTo(bb, x, y)
     self:paintGrid(bb, x, y)
 
     -- Viền ô chọn và ô cùng số vẽ sau lưới để không bị đường kẻ đè lên
+    -- Cạnh nào trùng đường kẻ đậm của khối 3x3 hay mép bàn cờ thì bỏ, không thì dày gấp đôi
+    local thin = self.thin_border
     for _, pos in ipairs(same_cells) do
-        bb:paintBorder(pos[1], pos[2], cell, cell, self.thin_border, COLOR.selected_border)
+        local cx, cy, row, col = pos[1], pos[2], pos[3], pos[4]
+        local color = COLOR.selected_border
+        if (row - 1) % 3 ~= 0 then bb:paintRect(cx, cy, cell, thin, color) end
+        if row % 3 ~= 0 then bb:paintRect(cx, cy + cell - thin, cell, thin, color) end
+        if (col - 1) % 3 ~= 0 then bb:paintRect(cx, cy, thin, cell, color) end
+        if col % 3 ~= 0 then bb:paintRect(cx + cell - thin, cy, thin, cell, color) end
     end
     if selected_rect then
         local sx, sy, on_black = selected_rect[1], selected_rect[2], selected_rect[3]
@@ -235,13 +245,13 @@ function Board:paintTo(bb, x, y)
         bb:paintBorder(sx + inset, sy + inset, cell - 2 * inset, cell - 2 * inset, self.border, color)
     end
 
-    for _, frame in ipairs(game:isHidden() and {} or self.frames or {}) do
+    for _, frame in ipairs((self.blank or game:isHidden()) and {} or self.frames or {}) do
         bb:paintBorder(x + (frame[2] - 1) * cell, y + (frame[1] - 1) * cell,
             (frame[4] - frame[2] + 1) * cell, (frame[3] - frame[1] + 1) * cell,
             self.frame_width, COLOR.frame)
     end
 
-    if game:isHidden() then
+    if game:isHidden() and not self.blank then
         local play = self[1]
         local play_size = play:getSize()
         play:paintTo(bb, x + math.floor((self.size - play_size.w) / 2),
