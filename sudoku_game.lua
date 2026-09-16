@@ -12,7 +12,7 @@
 local bit = require("bit")
 local Logic = require("sudoku_logic")
 
-local band, bxor, lshift = bit.band, bit.bxor, bit.lshift
+local band, bnot, bxor, lshift = bit.band, bit.bnot, bit.bxor, bit.lshift
 
 local Game = {}
 Game.__index = Game
@@ -156,6 +156,20 @@ function Game:completedRegions(row, col)
     return regions
 end
 
+-- Số `num` đã nằm đủ 9 ô khoá (ô khoá luôn đúng lời giải) thì không còn ô nào
+-- điền được nữa: phím số làm mờ và bỏ qua lần bấm
+function Game:isDigitDone(num)
+    local count = 0
+    for row = 1, 9 do
+        for col = 1, 9 do
+            if self.locked[row][col] and self.entries[row][col] == num then
+                count = count + 1
+            end
+        end
+    end
+    return count == 9
+end
+
 -- ==================== ĐIỀN SỐ ====================
 
 local function pushHistory(self, row, col)
@@ -183,6 +197,19 @@ local function afterCorrect(self, row, col)
     self.errors[row][col] = false
     self.locked[row][col] = true
 
+    -- Số đã chắc chắn đúng thì bỏ ghi chú số đó ở cùng hàng, cột, khối.
+    -- Không cần ghi vào history: ô khoá không undo được.
+    local mask = bnot(lshift(1, self.entries[row][col] - 1))
+    local box_row = math.floor((row - 1) / 3) * 3 + 1
+    local box_col = math.floor((col - 1) / 3) * 3 + 1
+    for i = 1, 9 do
+        self.notes[row][i] = band(self.notes[row][i], mask)
+        self.notes[i][col] = band(self.notes[i][col], mask)
+        local r = box_row + math.floor((i - 1) / 3)
+        local c = box_col + (i - 1) % 3
+        self.notes[r][c] = band(self.notes[r][c], mask)
+    end
+
     if self:isWin() then
         self.won = true
         self:stopClock()
@@ -199,7 +226,7 @@ function Game:input(num)
     if not sel then return nil end
 
     local row, col = sel.row, sel.col
-    if self.locked[row][col] then return nil end
+    if self.locked[row][col] or self:isDigitDone(num) then return nil end
 
     pushHistory(self, row, col)
 

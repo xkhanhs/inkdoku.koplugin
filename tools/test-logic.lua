@@ -129,6 +129,59 @@ do -- ghi chú bitmask, clear, giới hạn history
     check("history tối đa 50", #game.history == Game.MAX_HISTORY)
 end
 
+do -- điền đúng thì xoá ghi chú số đó ở cùng hàng, cột, khối
+    local game = Game.new(clock)
+    game:start("easy", puzzle, solution)
+    local row, col = firstEmpty(game)
+    local num = solution[row][col]
+    local peers, others = {}, {}
+    for r = 1, 9 do
+        for c = 1, 9 do
+            if game.entries[r][c] == 0 and not (r == row and c == col) then
+                local same_box = math.floor((r - 1) / 3) == math.floor((row - 1) / 3)
+                    and math.floor((c - 1) / 3) == math.floor((col - 1) / 3)
+                local list = (r == row or c == col or same_box) and peers or others
+                list[#list + 1] = { r, c }
+            end
+        end
+    end
+    game:togglePencil()
+    for _, cell in ipairs({ peers[1], others[1] }) do
+        game:select(cell[1], cell[2])
+        game:input(num)
+        game:input(num % 9 + 1)
+    end
+    game:togglePencil()
+    game:select(row, col)
+    game:input(num)
+    local p, o = peers[1], others[1]
+    check("xoá ghi chú cùng số ở ô liên quan", not game:hasNote(p[1], p[2], num)
+        and game:hasNote(p[1], p[2], num % 9 + 1))
+    check("giữ ghi chú ở ô không liên quan", game:hasNote(o[1], o[2], num))
+end
+
+do -- số đã đủ 9 ô khoá thì không điền được nữa
+    local game = Game.new(clock)
+    game:start("easy", puzzle, solution)
+    local first_row, first_col = firstEmpty(game)
+    local num = solution[first_row][first_col]
+    check("số chưa đủ", not game:isDigitDone(num))
+    local target
+    for r = 1, 9 do
+        for c = 1, 9 do
+            if solution[r][c] == num and game.entries[r][c] == 0 then
+                game:select(r, c)
+                game:input(num)
+            elseif solution[r][c] ~= num and game.entries[r][c] == 0 then
+                target = target or { r, c }
+            end
+        end
+    end
+    check("số đã đủ 9 ô", game:isDigitDone(num))
+    game:select(target[1], target[2])
+    check("bấm số đã đủ thì bỏ qua", game:input(num) == nil and game.mistakes == 0)
+end
+
 do -- thua sau 3 lỗi
     local game = Game.new(clock)
     game:start("easy", puzzle, solution)

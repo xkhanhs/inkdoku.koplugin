@@ -49,6 +49,9 @@ local DIFFICULTY_ROWS = {
     { "hard", "extreme" },
 }
 
+-- Phím số đã dùng đủ 9 ô
+local COLOR_DIGIT_DONE = Blitbuffer.COLOR_GRAY_B
+
 -- Khung vùng vừa hoàn thành hiện bao lâu rồi tự gỡ
 local FRAME_SECONDS = 1.5
 
@@ -370,6 +373,7 @@ function SudokuScreen:buildLayout()
     -- Number pad 9 nút ngang
     local digit_w = math.floor(inner / 9)
     local pad = HorizontalGroup:new{}
+    self.digit_labels = pad
     for num = 1, 9 do
         pad[num] = Label:new{
             width = digit_w, height = pad_h,
@@ -431,6 +435,19 @@ function SudokuScreen:syncControls()
     self.pencil_button.badge_active = game.pencil
     self.hint_button.badge = tostring(game.hints)
     self.hint_button.badge_active = game.hints > 0
+
+    -- Số đã đủ 9 ô thì phím mờ đi. Trả về các phím vừa đổi màu để vẽ lại riêng.
+    local changed = {}
+    for num, label in ipairs(self.digit_labels) do
+        -- So cờ boolean, không so hai màu cdata
+        local done = game:isDigitDone(num)
+        if label.done ~= done then
+            label.done = done
+            label.color = done and COLOR_DIGIT_DONE or Blitbuffer.COLOR_BLACK
+            changed[#changed + 1] = label
+        end
+    end
+    return changed
 end
 
 -- ==================== VẼ LẠI ====================
@@ -511,7 +528,9 @@ function SudokuScreen:applyResult(result)
         UIManager:scheduleIn(FRAME_SECONDS, self.clear_frames)
     end
     self:repaintBoard()
-    self:syncControls()
+    for _, label in ipairs(self:syncControls()) do
+        self:repaint(label, "ui")
+    end
     self:repaint(self.mistakes_label, "ui")
     self:repaint(self.hint_button, "ui")
     self.plugin:saveGame()

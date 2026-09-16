@@ -106,3 +106,6 @@ refresh toàn màn. Mẫu lấy từ `frontend/ui/screensaver.lua`.
 - Trạng thái thua/thắng được lưu: mở lại ván đã thua vẫn hiện modal thua, không
   chơi tiếp được như bản web.
 - Modal chọn độ khó xếp hai cột theo độ khó tăng dần.
+- Điền đúng (hoặc gợi ý) một số thì ghi chú số đó ở cùng hàng, cột, khối tự xoá.
+- Số đã nằm đủ 9 ô khoá thì phím số mờ đi và bấm vào không làm gì, kể cả ở chế độ
+  ghi chú.
