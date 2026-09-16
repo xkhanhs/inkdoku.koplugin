@@ -10,7 +10,7 @@
 --   errors  - ô đang điền sai
 
 local bit = require("bit")
-local Logic = require("sudoku_logic")
+local Logic = require("inkdoku_logic")
 
 local band, bnot, bxor, lshift = bit.band, bit.bnot, bit.bxor, bit.lshift
 

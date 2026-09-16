@@ -1,47 +1,49 @@
-# Plugin KOReader
+# Thiết kế
 
-`sudoku.koplugin/` là bản Sudoku chạy trong KOReader, nhắm tới Kindle Basic 2022
+Inkdoku là bản Sudoku chạy trong KOReader, nhắm tới Kindle Basic 2022
 (màn e-ink 6", 1072x1448, xám 16 mức, cảm ứng, không phím). Không dùng chung dòng
-code nào với bản web; luật chơi và bố cục dịch từ `js/` sang Lua.
+code nào với [bản web](https://github.com/xkhanhs/sudoku); luật chơi và bố cục dịch
+từ `js/` của repo đó sang Lua.
 
 ## Cài đặt
 
 Chép nguyên thư mục vào `koreader/plugins/` trên máy rồi khởi động lại KOReader:
 
 ```bash
-scp -P 2222 -r sudoku.koplugin root@"$(kindle-ip)":/mnt/us/koreader/plugins/
+scp -P 2222 -r inkdoku.koplugin root@"$(kindle-ip)":/mnt/us/koreader/plugins/
 ```
 
 Đừng chép bằng Finder: macOS để lại file `._*` trên thẻ FAT32. Mục **Sudoku** nằm
 trong menu công cụ (**More tools**). Trên ZenOS, plugin chép tay không tự vào
 launcher (ZenOS chỉ tự thêm plugin cài qua ZenPM).
 
-Tên plugin là tên thư mục (`sudoku`). Nếu máy đã có `omer-faruq/sudoku.koplugin`
-thì lệnh trên chép đè lên plugin đó. Ván lưu ở `koreader/settings/sudoku.lua`,
-khoá `game`, không đụng khoá `state` của plugin kia.
+Tên plugin là tên thư mục (`inkdoku`), nên cài song song được với
+`omer-faruq/sudoku.koplugin`. Ván lưu ở `koreader/settings/inkdoku.lua`, khoá `game`.
 
 ## Cấu trúc
 
 | File | Vai trò |
 |---|---|
 | `main.lua` | Vỏ plugin: mục menu, nạp/lưu ván bằng `LuaSettings`, mở màn chơi |
-| `sudoku_game.lua` | Trạng thái và luật chơi (dịch `js/state.js`, `js/ui-controller.js`) |
-| `sudoku_logic.lua` | Solver bitmask chọn ô ít ứng viên trước, đếm nghiệm, sinh đề |
-| `sudoku_bank.lua` | Chọn ngẫu nhiên một đề trong `puzzles/*.txt` |
-| `sudoku_board.lua` | Widget bàn cờ vẽ lên BlitBuffer (dịch `js/board-render.js`) |
-| `sudoku_screen.lua` | Bố cục, nút, number pad, modal, đồng hồ, chớp, khoá dọc |
+| `inkdoku_game.lua` | Trạng thái và luật chơi (dịch `js/state.js`, `js/ui-controller.js`) |
+| `inkdoku_logic.lua` | Solver bitmask chọn ô ít ứng viên trước, đếm nghiệm, sinh đề |
+| `inkdoku_bank.lua` | Chọn ngẫu nhiên một đề trong `puzzles/*.txt` |
+| `inkdoku_board.lua` | Widget bàn cờ vẽ lên BlitBuffer (dịch `js/board-render.js`) |
+| `inkdoku_screen.lua` | Bố cục, nút, number pad, modal, đồng hồ, chớp, khoá dọc |
+| `inkdoku_i18n.lua` | Chuỗi giao diện tiếng Anh và tiếng Việt, chọn theo ngôn ngữ của KOReader |
 | `icons/*.svg` | Icon lấy nguyên từ `index.html`, đổi `currentColor` thành đen |
 | `puzzles/` | 300 đề mỗi mức khó nhất, nguồn public domain, xem `SOURCE.txt` |
 
-Ba file đầu là Lua thuần, không phụ thuộc KOReader. Mọi module mang tiền tố
-`sudoku_` và được require ngay khi nạp `main.lua`: pluginloader chỉ thêm thư mục
+`inkdoku_game`, `inkdoku_logic`, `inkdoku_bank`, `inkdoku_i18n` là Lua thuần, không phụ thuộc KOReader. Mọi module mang tiền tố
+`inkdoku_` và được require ngay khi nạp `main.lua`: pluginloader chỉ thêm thư mục
 plugin vào `package.path` trong lúc `dofile(main.lua)`, và `package.loaded` dùng
-chung cho mọi plugin nên tên trần như `state` dễ đụng nhau.
+chung cho mọi plugin nên tên trần như `state`, hay `sudoku_bank` của plugin
+omer-faruq, sẽ đụng nhau.
 
 ## Kiểm tra trên máy tính
 
 ```bash
-luajit tools/koreader/test-logic.lua
+luajit tools/test-logic.lua
 ```
 
 Sinh 20 đề mỗi mức tự sinh và kiểm từng đề đúng một nghiệm, kiểm mọi đề đóng gói,
@@ -56,7 +58,7 @@ rồi chạy qua luật chơi: sai, khoá ô, ghi chú, undo, clear, gợi ý, t
 - **Chuyên gia / Thành thạo / Cao thủ** lấy từ `puzzles/`: rating Sukaku Explainer
   3.0–4.9, 5.0–6.9 và từ 7.0. Đục tham lam tới 17–25 ô gợi ý mà vẫn duy nhất
   thường không tới được, nên các mức này không tự sinh. Dựng lại bộ đề bằng
-  `tools/koreader/build-puzzle-bank.lua`.
+  `tools/build-puzzle-bank.lua`.
 
 Đây là chỗ khác bản web: `removeNumbers()` bên JS đục ô không kiểm tra, nên đề khó
 có thể nhiều lời giải và người chơi điền một lời giải hợp lệ khác vẫn bị báo sai.

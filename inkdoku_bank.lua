@@ -3,9 +3,9 @@
 -- thì phải quay lui rất lâu trên CPU máy đọc sách. Thay vào đó chọn ngẫu nhiên một
 -- đề trong puzzles/<mức>.txt, mỗi dòng 81 chữ số, 0 là ô trống.
 --
--- Nguồn đề và cách dựng lại: tools/koreader/build-puzzle-bank.lua, puzzles/SOURCE.txt.
+-- Nguồn đề và cách dựng lại: tools/build-puzzle-bank.lua, puzzles/SOURCE.txt.
 
-local Logic = require("sudoku_logic")
+local Logic = require("inkdoku_logic")
 
 local Bank = {}
 

@@ -9,4 +9,4 @@ Bộ dữ liệu được tác giả dành cho public domain (LICENSE.txt của 
   master.txt   Thành thạo   diabolical.txt, rating 5.0 – 6.9   300 đề
   extreme.txt  Cao thủ      diabolical.txt, rating >= 7.0      300 đề
 
-Mỗi dòng 81 chữ số, 0 là ô trống. Dựng lại: tools/koreader/build-puzzle-bank.lua.
+Mỗi dòng 81 chữ số, 0 là ô trống. Dựng lại: tools/build-puzzle-bank.lua.

@@ -1,14 +1,14 @@
--- Dựng sudoku.koplugin/puzzles/*.txt từ grantm/sudoku-exchange-puzzle-bank (public domain).
+-- Dựng puzzles/*.txt từ grantm/sudoku-exchange-puzzle-bank (public domain).
 --
 --   curl -LO https://github.com/grantm/sudoku-exchange-puzzle-bank/raw/master/hard.txt
 --   curl -LO https://github.com/grantm/sudoku-exchange-puzzle-bank/raw/master/diabolical.txt
---   luajit tools/koreader/build-puzzle-bank.lua hard.txt diabolical.txt
+--   luajit tools/build-puzzle-bank.lua hard.txt diabolical.txt
 --
 -- File nguồn đã xếp theo hash nên lấy N dòng đầu khớp khoảng rating là đủ ngẫu nhiên.
 -- Mỗi đề được kiểm lại đúng một nghiệm trước khi ghi.
 
-package.path = "sudoku.koplugin/?.lua;" .. package.path
-local Logic = require("sudoku_logic")
+package.path = "./?.lua;" .. package.path
+local Logic = require("inkdoku_logic")
 
 local PER_LEVEL = 300
 local LEVELS = {
@@ -33,7 +33,7 @@ for _, level in ipairs(LEVELS) do
     end
     assert(#picked == PER_LEVEL, level.name .. ": chỉ có " .. #picked .. " đề")
 
-    local out = assert(io.open("sudoku.koplugin/puzzles/" .. level.name .. ".txt", "w"))
+    local out = assert(io.open("puzzles/" .. level.name .. ".txt", "w"))
     out:write(table.concat(picked, "\n"), "\n")
     out:close()
     print(level.name, #picked)
