@@ -1,0 +1,12 @@
+Đề trong thư mục này lấy từ Sudoku Exchange Puzzle Bank:
+https://github.com/grantm/sudoku-exchange-puzzle-bank
+
+Bộ dữ liệu được tác giả dành cho public domain (LICENSE.txt của repo nguồn:
+"This is a free and unencumbered data set released into the public domain.").
+Đề do QQWing sinh ra, chấm điểm bằng Sukaku Explainer.
+
+  expert.txt   Chuyên gia   hard.txt,       rating 3.0 – 4.9   300 đề
+  master.txt   Thành thạo   diabolical.txt, rating 5.0 – 6.9   300 đề
+  extreme.txt  Cao thủ      diabolical.txt, rating >= 7.0      300 đề
+
+Mỗi dòng 81 chữ số, 0 là ô trống. Dựng lại: tools/koreader/build-puzzle-bank.lua.
