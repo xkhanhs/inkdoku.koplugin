@@ -55,6 +55,7 @@ function Board:init()
     self.thin = math.max(1, math.floor(self.cell / 56))
     self.thick = math.max(2, math.floor(self.cell / 28))
     self.border = math.max(3, math.floor(self.cell / 16))
+    self.thin_border = math.max(2, math.floor(self.border / 2))
     self.frame_width = math.max(4, math.floor(self.cell / 11))
     -- Số đề bài in đậm, số mình điền in thường: xám nhạt dần không đủ tách hai loại
     self.given_face = faceForPixels("tfont", self.cell * NUMBER_RATIO)
@@ -99,9 +100,9 @@ end
 -- ==================== KIỂU TỪNG Ô ====================
 
 -- Khác bản web vì e-ink:
---   * Không tô dấu cộng hàng/cột/khối và ô cùng số. Mỗi lần chọn ô đổi nền cả chục
---     ô, refresh "ui" chạy qua đen rồi mới về xám nên cả hàng cột nháy lên. Chỉ còn
---     viền đậm quanh ô đang chọn, chạm ô khác chỉ đổi pixel của hai viền.
+--   * Không tô nền dấu cộng hàng/cột/khối hay ô cùng số. Mỗi lần chọn ô đổi nền cả
+--     chục ô, refresh "ui" chạy qua đen rồi mới về xám nên cả hàng cột nháy lên.
+--     Ô đang chọn có viền đậm, ô cùng số có viền mảnh: chạm ô khác chỉ đổi pixel viền.
 --   * Ô sai luôn nền đen chữ trắng.
 --   * Tạm dừng thì bàn cờ trống trơn: không số, không viền, không ô sai.
 function Board:cellStyle(row, col)
@@ -112,6 +113,12 @@ function Board:cellStyle(row, col)
         notes = hidden and 0 or game.notes[row][col],
         selected = not hidden and game:isSelected(row, col),
     }
+
+    local sel = game.selected
+    if not hidden and sel and not style.selected and not game.errors[row][col] then
+        local selected_value = game.entries[sel.row][sel.col]
+        style.same_number = selected_value ~= 0 and style.value == selected_value
+    end
 
     if game.errors[row][col] and not hidden then
         style.background = COLOR.error
@@ -130,7 +137,7 @@ function Board:cellStyle(row, col)
     style.key = table.concat({ style.background and style.background:getColor8().a or "-",
         style.color:getColor8().a,
         style.value, style.notes, tostring(style.selected), tostring(hidden),
-        tostring(style.framed) }, "|")
+        tostring(style.framed), tostring(style.same_number) }, "|")
     return style
 end
 
@@ -173,6 +180,7 @@ function Board:paintTo(bb, x, y)
     if not game or not game.entries then return end
 
     local selected_rect
+    local same_cells = {}
     for row = 1, 9 do
         for col = 1, 9 do
             local cell_x = x + (col - 1) * cell
@@ -201,6 +209,10 @@ function Board:paintTo(bb, x, y)
                 end
             end
 
+            if style.same_number then
+                same_cells[#same_cells + 1] = { cell_x, cell_y }
+            end
+
             if style.selected then
                 selected_rect = { cell_x, cell_y, style.background == COLOR.error }
             end
@@ -209,7 +221,10 @@ function Board:paintTo(bb, x, y)
 
     self:paintGrid(bb, x, y)
 
-    -- Viền ô chọn vẽ sau lưới để không bị đường kẻ đè lên
+    -- Viền ô chọn và ô cùng số vẽ sau lưới để không bị đường kẻ đè lên
+    for _, pos in ipairs(same_cells) do
+        bb:paintBorder(pos[1], pos[2], cell, cell, self.thin_border, COLOR.selected_border)
+    end
     if selected_rect then
         local sx, sy, on_black = selected_rect[1], selected_rect[2], selected_rect[3]
         local color = on_black and COLOR.light_text or COLOR.selected_border
