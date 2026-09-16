@@ -40,6 +40,8 @@ local function faceForPixels(name, pixels)
     return Font:getFace(name, math.max(6, math.floor(pixels / scale)))
 end
 
+-- Màu là cdata FFI: so sánh `==` với nil gọi __eq của Blitbuffer và crash KOReader.
+-- Muốn biết kiểu ô thì dùng cờ boolean trong style, đừng so màu.
 local Board = InputContainer:extend{
     game = nil,
     size = nil,        -- cạnh bàn cờ, pixel
@@ -121,6 +123,7 @@ function Board:cellStyle(row, col)
     end
 
     if game.errors[row][col] and not hidden then
+        style.error = true
         style.background = COLOR.error
         style.color = COLOR.light_text
     end
@@ -196,7 +199,7 @@ function Board:paintTo(bb, x, y)
                 drawCentered(bb, style.given and self.given_face or self.entry_face,
                     tostring(style.value), cell_x, cell_y, cell, cell, style.color)
             elseif style.notes ~= 0 then
-                local color = style.background == COLOR.error and COLOR.light_text or COLOR.note_text
+                local color = style.error and COLOR.light_text or COLOR.note_text
                 local mini = cell / 3
                 for num = 1, 9 do
                     if game:hasNote(row, col, num) then
@@ -214,7 +217,7 @@ function Board:paintTo(bb, x, y)
             end
 
             if style.selected then
-                selected_rect = { cell_x, cell_y, style.background == COLOR.error }
+                selected_rect = { cell_x, cell_y, style.error }
             end
         end
     end
