@@ -79,7 +79,7 @@ có thể nhiều lời giải và người chơi điền một lời giải h�
 | ô đang chọn | nền `#18958f` | viền đen đậm |
 | ô cùng số | nền `#73bcb3` | viền đen mảnh, bỏ cạnh trùng đường kẻ đậm |
 | ô sai | chữ `#E3A99B` | nền đen, chữ trắng |
-| số đề bài / số mình điền | `#6B5A47` / `#18958f` | đen in đậm / `COLOR_GRAY_5` in thường |
+| số đề bài / số mình điền | `#6B5A47` / `#18958f` | đen / `COLOR_GRAY_5`, cùng nét thường |
 | ghi chú | `#6B5A47` | `COLOR_GRAY_4` |
 | lưới mảnh / đậm | `#d4c4b0` / `#9d8b7a` | `COLOR_GRAY_9` / đen |
 
@@ -94,8 +94,9 @@ Thử trên máy mới ra bảng này:
 - **Ô sai luôn nền đen.** Chữ đỏ nhạt của web không có mức xám nào tách được khỏi số
   thường. Ô đang chọn vì thế không được tô nền đậm, nếu không ô vừa điền đúng (vẫn
   đang chọn) trông y hệt ô sai.
-- **Số đề bài in đậm.** Chỉ khác mức xám (`GRAY_4` so với đen) thì trên máy gần như
-  không phân biệt được.
+- **Số đề bài và số mình điền cùng nét thường**, chỉ khác màu (đen và `GRAY_5`).
+  Bản trước in đậm số đề bài vì `GRAY_4` so với đen gần như không phân biệt được; khi
+  font là Bookerly thì nét đậm trông quá nặng trong ô nên bỏ.
 
 **Sóng loang thành khung viền.** Hàng, cột, khối vừa hoàn thành được đóng khung đen
 đậm ngay trong lần refresh hiện số vừa điền, rồi tự gỡ sau 1.5 giây. Trong lúc có
@@ -103,11 +104,11 @@ khung, không viền ô cùng số để khỏi chồng nhiều khung. Không c�
 một cú chớp đảo màu bằng refresh `"fast"`, nhưng `"fast"` chỉ có đen trắng nên các ô
 xám trong vùng cũng nháy theo, trông như nháy cả mảng.
 
-**Font để KOReader quyết định.** Chữ thường xin `cfont`, chữ đậm (số đề bài, tiêu đề,
-badge) xin `tfont`; plugin không đóng gói font riêng. ZenOS ghi đè `Font.fontmap` bằng
+**Font để KOReader quyết định.** Chữ thường và số trên bàn cờ xin `cfont`, chữ đậm
+(tiêu đề, badge) xin `tfont`; plugin không đóng gói font riêng. ZenOS ghi đè `Font.fontmap` bằng
 font thư viện người dùng chọn (`modules/global/patches/menu_font.lua`), nên cả màn chơi,
 kể cả số trên bàn cờ, hiện bằng font đó. Bản ZenOS nào còn tìm font đậm gốc qua `ffont`
-thì không đổi được `tfont`, và số đề bài sẽ lệch font với số còn lại. Số trong ô chiếm
+thì không đổi được `tfont`, và tiêu đề, badge sẽ lệch font với phần còn lại. Số trong ô chiếm
 72% cạnh ô.
 
 **Modal trên nền trống.** Khi hiện modal thắng hay modal chọn độ khó, bàn cờ trắng
