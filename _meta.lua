@@ -5,5 +5,5 @@ local _ = require("gettext")
 return {
     fullname = _("Sudoku"),
     description = _([[Sudoku for e-ink readers: unique-solution puzzles, 6 difficulty levels, autosave.]]),
-    version = "1.1.0",
+    version = "1.1.1",
 }
