@@ -63,9 +63,8 @@ function Board:init()
     self.border = math.max(3, math.floor(self.cell / 16))
     self.thin_border = math.max(2, math.floor(self.border / 2))
     self.frame_width = math.max(4, math.floor(self.cell / 11))
-    -- Số đề bài in đậm, số mình điền in thường: xám nhạt dần không đủ tách hai loại
-    self.given_face = faceForPixels("tfont", self.cell * NUMBER_RATIO)
-    self.entry_face = faceForPixels("cfont", self.cell * NUMBER_RATIO)
+    -- Số đề bài và số mình điền cùng nét thường, chỉ khác màu: đen và xám
+    self.digit_face = faceForPixels("cfont", self.cell * NUMBER_RATIO)
     self.note_face = faceForPixels("cfont", self.cell * NOTE_RATIO)
     self.option_face = faceForPixels("cfont", self.cell * 0.34)
     self.painted = {}
@@ -247,7 +246,7 @@ function Board:paintTo(bb, x, y)
             end
 
             if style.value ~= 0 then
-                drawCentered(bb, style.given and self.given_face or self.entry_face,
+                drawCentered(bb, self.digit_face,
                     tostring(style.value), cell_x, cell_y, cell, cell, style.color)
             elseif style.notes ~= 0 then
                 local color = style.error and COLOR.light_text or COLOR.note_text
